@@ -2,14 +2,22 @@
   'use strict';
 
   const D = {
-    version: 2,
+    version: 3,
     realms: [
-      { id: 'qi', name: '炼气', threshold: 90, lifespan: 100, subtitle: '引气入体 · 初闻大道' },
-      { id: 'foundation', name: '筑基', threshold: 180, lifespan: 200, subtitle: '道基初成 · 择山而栖' },
-      { id: 'core', name: '金丹', threshold: 280, lifespan: 500, subtitle: '一粒金丹 · 山河入眼' },
-      { id: 'soul', name: '元婴', threshold: 420, lifespan: 1000, subtitle: '婴神离窍 · 问心问道' },
-      { id: 'divinity', name: '化神', threshold: 560, lifespan: 2000, subtitle: '神游太虚 · 叩问天门' },
-      { id: 'ascended', name: '飞升', threshold: 0, lifespan: null, subtitle: '此身越青冥 · 旧事留人间' }
+      { id: 'qi', name: '炼气', threshold: 90, lifespan: 100, world: 'mortal', subtitle: '引气入体 · 初闻大道' },
+      { id: 'foundation', name: '筑基', threshold: 180, lifespan: 200, world: 'mortal', subtitle: '道基初成 · 择山而栖' },
+      { id: 'core', name: '金丹', threshold: 280, lifespan: 500, world: 'mortal', subtitle: '一粒金丹 · 山河入眼' },
+      { id: 'soul', name: '元婴', threshold: 420, lifespan: 1000, world: 'mortal', subtitle: '婴神离窍 · 问心问道' },
+      { id: 'divinity', name: '化神', threshold: 560, lifespan: 2000, world: 'mortal', subtitle: '神游太虚 · 叩问天门' },
+      { id: 'mahayana', name: '大乘', threshold: 850, lifespan: 5000, world: 'mortal', subtitle: '百川归海 · 大道渐成' },
+      { id: 'tribulation', name: '渡劫', threshold: 1100, lifespan: 10000, world: 'mortal', subtitle: '九霄劫动 · 凡身将蜕' },
+      { id: 'ascended', name: '真仙', threshold: 1600, lifespan: 20000, world: 'immortal', subtitle: '飞升仙界 · 再启道途' },
+      { id: 'heaven', name: '天仙', threshold: 2200, lifespan: 50000, world: 'immortal', subtitle: '驭风御法 · 天地同游' },
+      { id: 'mystic', name: '玄仙', threshold: 3000, lifespan: 100000, world: 'immortal', subtitle: '玄理入微 · 万象归心' },
+      { id: 'gold', name: '金仙', threshold: 4200, lifespan: 200000, world: 'immortal', subtitle: '金性不朽 · 道果长存' },
+      { id: 'king', name: '仙王', threshold: 5600, lifespan: 500000, world: 'immortal', subtitle: '镇守一域 · 星河俯首' },
+      { id: 'venerable', name: '仙尊', threshold: 7500, lifespan: 1000000, world: 'immortal', subtitle: '诸天问道 · 万法归一' },
+      { id: 'emperor', name: '仙帝', threshold: 0, lifespan: null, world: 'immortal', subtitle: '道临诸天 · 此生登巅' }
     ],
     roots: [
       { id: 'metal', name: '金灵根', desc: '金气锐利，炼体与锻器时更容易有所收获。', start: { physique: 6 }, actions: { train: { physique: 2 }, forge: { cultivation: 3 } } },
@@ -107,7 +115,9 @@
       { id: 'frost-breath', name: '寒潭吐纳', category: '修行', icon: '冰', desc: '以一缕寒息压下杂念，让灵气缓缓凝练。悟性与心境一并成长，寒意却会消磨气血。', effects: { cultivation: 17, insight: 2, resolve: 3, health: -5 }, requirePath: 'ice', hint: '玄冰专属；养心增悟，需要定期温养气血。' },
       { id: 'thunder-temper', name: '引雷淬脉', category: '修行', icon: '雷', desc: '引入细微雷意锻炼经脉，以更大的消耗换取修为。雷势虽小，也需要完整的身体承受。', effects: { cultivation: 24, physique: 3, spirit: 2, health: -14, resolve: -7 }, requirePath: 'thunder', hint: '雷修专属；高气血、心境消耗，经脉受伤时不能安排。' },
       { id: 'soul-lantern', name: '照魂守灯', category: '修行', icon: '魂', desc: '点亮识海中的心灯，照见散乱念头。神识增长突出，但长久内观也会疲惫，需要休养心境。', effects: { cultivation: 12, spirit: 7, health: -3, resolve: -7 }, requirePath: 'soul', hint: '魂修专属；神识成长快，心境消耗较高。' },
-      { id: 'sun-breath', name: '朝阳采气', category: '修行', icon: '阳', desc: '在日出时采一缕温和阳气，以修为滋养筋骨。能恢复部分气血，心境仍需靠日常休整。', effects: { cultivation: 14, health: 8, physique: 1, resolve: -5 }, requirePath: 'yang', hint: '纯阳专属；恢复气血，但不解除经脉受伤。' }
+      { id: 'sun-breath', name: '朝阳采气', category: '修行', icon: '阳', desc: '在日出时采一缕温和阳气，以修为滋养筋骨。能恢复部分气血，心境仍需靠日常休整。', effects: { cultivation: 14, health: 8, physique: 1, resolve: -5 }, requirePath: 'yang', hint: '纯阳专属；恢复气血，但不解除经脉受伤。' },
+      { id: 'partner-cultivate', name: '同心共修', category: '修行', icon: '缘', desc: '与彼此认可的道侣一同参悟，交流各自的修行所得。双方心意相通，修为与神识也能相互印证。', effects: { cultivation: 18, spirit: 3, resolve: 4 }, requirePartner: true, hint: '需要已结为道侣的成年伙伴；共修不会消耗关系。' },
+      { id: 'charity', name: '赈济乡里', category: '生活', icon: '善', desc: '花 60 灵石购置粮药，亲自送到需要的人手里。善行能改善外界评价，也是挽回恶名的一条踏实道路。', effects: { stones: -60, morality: 8, reputation: 2, resolve: 2 }, hint: '所有流派均可安排；道德评价 +8。' }
     ],
     items: [
       { id: 'manual', name: '小周天注疏', icon: '卷', kind: 'equipment', price: 280, max: 1, desc: '随身研读的修炼手册。每次静室修炼额外修为 +6，购入后长期生效。', actions: { meditate: { cultivation: 6 } } },
@@ -121,7 +131,13 @@
       { id: 'breakthrough-pill', name: '明心破境丹', icon: '明', kind: 'consumable', price: 220, max: 6, desc: '服用后连续 3 年，破境成功率提高 15 个百分点；每年奇遇结束后扣除一年。同类效果不能叠加。', buff: 'insight' },
       { id: 'healing-salve', name: '续脉膏', icon: '药', kind: 'consumable', price: 90, max: 8, desc: '立即恢复气血 25，并解除「经脉受伤」。没有伤势时也可用于补充气血。', useEffects: { health: 25 }, clearCondition: 'injured' },
       { id: 'mountain-tea', name: '云雾灵茶', icon: '茶', kind: 'consumable', price: 100, max: 6, desc: '立即心境 +10，接下来 3 年参悟额外悟性 +3、静坐额外修为 +4；每年奇遇结束后扣除一年。', useEffects: { resolve: 10 }, buff: 'clear-mind' },
-      { id: 'spirit-fruit', name: '赤玉灵果', icon: '果', kind: 'consumable', price: 120, max: 8, desc: '温和滋补，立即气血 +15、心境 +10、体魄 +2。', useEffects: { health: 15, resolve: 10, physique: 2 } }
+      { id: 'spirit-fruit', name: '赤玉灵果', icon: '果', kind: 'consumable', price: 120, max: 8, desc: '温和滋补，立即气血 +15、心境 +10、体魄 +2。', useEffects: { health: 15, resolve: 10, physique: 2 } },
+      { id: 'sect-armlet', name: '山门玄铁护臂', icon: '铠', kind: 'equipment', price: 900, max: 1, requireRealm: 3, desc: '元婴境可用。常驻战力 +18；瀑下炼体、熬骨淬身的气血消耗各减少 2。也可在炼器堂以贡献兑换。', powerBonus: 18, actions: { train: { health: 2 }, 'body-temper': { health: 2 } } },
+      { id: 'star-map', name: '周天星图', icon: '图', kind: 'equipment', price: 680, max: 1, requireRealm: 2, auctionOnly: true, desc: '拍卖场珍藏，金丹境可用。参悟经典额外修为 +10、悟性 +1；星位会随修行记录逐渐清晰。', actions: { comprehend: { cultivation: 10, insight: 1 } } },
+      { id: 'thunder-jade', name: '雷纹镇心玉', icon: '玉', kind: 'equipment', price: 1400, max: 1, requireRealm: 4, auctionOnly: true, desc: '拍卖场珍藏，化神境可用。常驻战力 +24，静室修炼额外心境 +1。', powerBonus: 24, actions: { meditate: { resolve: 1 } } },
+      { id: 'void-bell', name: '太虚清音钟', icon: '钟', kind: 'equipment', price: 3800, max: 1, requireRealm: 7, auctionOnly: true, desc: '仙界拍品，真仙境可用。常驻战力 +65，凝神观想额外修为 +20、神识 +3。', powerBonus: 65, actions: { 'spirit-practice': { cultivation: 20, spirit: 3 } } },
+      { id: 'emperor-seal', name: '镇星古印', icon: '印', kind: 'equipment', price: 9200, max: 1, requireRealm: 10, auctionOnly: true, desc: '上古拍品，金仙境可用。常驻战力 +120，静室修炼额外修为 +30。古印只是法器，不能代替真正的帝境突破。', powerBonus: 120, actions: { meditate: { cultivation: 30 } } },
+      { id: 'phoenix-elixir', name: '涅槃仙露', icon: '露', kind: 'consumable', price: 4500, max: 3, requireRealm: 7, auctionOnly: true, desc: '仙界拍品，真仙境可用。立即气血 +60、心境 +40、修为 +180，并解除经脉受伤。', useEffects: { health: 60, resolve: 40, cultivation: 180 }, clearCondition: 'injured' }
     ],
     buffs: [
       { id: 'ward', name: '符光护身', desc: '护身符仍有灵光，战力 +15。', duration: 3, powerBonus: 15 },
@@ -140,7 +156,64 @@
       { id: 'sword-echo', name: '一剑留痕', desc: '记住了前辈落剑的分寸。问剑悟意额外修为 +3，战力 +4。', actions: { 'sword-intent': { cultivation: 3 } }, powerBonus: 4 },
       { id: 'tempered-sinew', name: '筋骨有节', desc: '学会在发力间隙养护筋骨。瀑下炼体的气血消耗减少 2，熬骨淬身减少 3。', actions: { train: { health: 2 }, 'body-temper': { health: 3 } } },
       { id: 'beast-accord', name: '林间灵契', desc: '附近鸟兽愿意回应你的灵识。万灵共鸣额外修为 +3，照料幼兽的气血消耗减少 2。', actions: { 'beast-attune': { cultivation: 3 }, 'beast-care': { health: 2 } } },
-      { id: 'soul-anchor', name: '归魂心灯', desc: '你在识海中留下了返回日常的锚点。照魂守灯的心境消耗减少 3，凝神观想额外修为 +2。', actions: { 'soul-lantern': { resolve: 3 }, 'spirit-practice': { cultivation: 2 } } }
+      { id: 'soul-anchor', name: '归魂心灯', desc: '你在识海中留下了返回日常的锚点。照魂守灯的心境消耗减少 3，凝神观想额外修为 +2。', actions: { 'soul-lantern': { resolve: 3 }, 'spirit-practice': { cultivation: 2 } } },
+      { id: 'sect-meditation', name: '山门吐纳真解', desc: '藏经阁传授的进阶行气法。静室修炼额外修为 +8。', actions: { meditate: { cultivation: 8 } } },
+      { id: 'sect-insight', name: '经义辨微', desc: '熟悉典籍之间的脉络。参悟经典额外悟性 +3，听长老讲经额外修为 +5。', actions: { comprehend: { insight: 3 }, lecture: { cultivation: 5 } } },
+      { id: 'immortal-sutra', name: '太清仙经', desc: '仙界经义融入旧日功法。静室修炼额外修为 +18，破境成功率提高 4 个百分点。', actions: { meditate: { cultivation: 18 } }, breakthroughBonus: 0.04 },
+      { id: 'tide-memory', name: '潮生道痕', desc: '水府遗迹留下的行气印记。凝神观想额外修为 +8，战力 +10。', actions: { 'spirit-practice': { cultivation: 8 } }, powerBonus: 10 },
+      { id: 'thunder-mark', name: '雷府古篆', desc: '古雷府的守护篆文已经刻入识海。瀑下炼体额外修为 +8，战力 +24。', actions: { train: { cultivation: 8 } }, powerBonus: 24 },
+      { id: 'star-compass', name: '星墟道标', desc: '能在仙界星海中辨认方位。山海游历额外修为 +15，战力 +40。', actions: { explore: { cultivation: 15 } }, powerBonus: 40 },
+      { id: 'ancient-crown', name: '古帝传道', desc: '古帝陵中留下的是道理，而非现成的境界。战力 +80，破境成功率提高 5 个百分点。', powerBonus: 80, breakthroughBonus: 0.05 }
+    ],
+    facilities: [
+      { id: 'pill-hall', name: '炼丹堂', desc: '凭山门贡献支取丹药。药性与坊市相同，每一份都真实收入背囊。', offers: [
+        { id: 'qi-pair', name: '聚气丹两枚', desc: '支取两枚聚气丹，留待修为不足时服用。', cost: 30, gainItems: { 'qi-pill': 2 } },
+        { id: 'healing-pair', name: '续脉膏两份', desc: '为下一次受伤或气血不足预留药物。', cost: 20, gainItems: { 'healing-salve': 2 } },
+        { id: 'breakthrough-dose', name: '明心破境丹', desc: '闭关前服用，提高未来三年破境成功率。', cost: 40, gainItems: { 'breakthrough-pill': 1 } },
+        { id: 'fruit-pair', name: '赤玉灵果两枚', desc: '补充气血与心境，也能温养体魄。', cost: 25, gainItems: { 'spirit-fruit': 2 } }
+      ] },
+      { id: 'library', name: '藏经阁', desc: '以贡献换取传法资格。读懂后成为长期收获，不占背囊，也不能重复兑换。', offers: [
+        { id: 'breathing-book', name: '研读吐纳真解', desc: '永久提升静室修炼收益：额外修为 +8。', cost: 100, requireRealm: 1, grantPerk: 'sect-meditation' },
+        { id: 'insight-book', name: '研读经义辨微', desc: '参悟额外悟性 +3，讲经额外修为 +5。', cost: 80, requireRealm: 1, grantPerk: 'sect-insight' },
+        { id: 'immortal-book', name: '研读太清仙经', desc: '真仙境可读。静坐额外修为 +18，破境成功率 +4 个百分点。', cost: 400, requireRealm: 7, grantPerk: 'immortal-sutra' }
+      ] },
+      { id: 'forge-hall', name: '炼器堂', desc: '凭贡献换取护身法器。装备持有即生效，相同装备只可拥有一件。', offers: [
+        { id: 'sect-sword', name: '领用青锋法剑', desc: '战力 +12，并开启通用的练习御剑行动。', cost: 80, requireRealm: 1, gainItems: { sword: 1 } },
+        { id: 'sect-boots', name: '领用踏云履', desc: '游历更省气血，采矿也能更好地锻炼筋骨。', cost: 50, requireRealm: 1, gainItems: { 'cloud-boots': 1 } },
+        { id: 'sect-armor', name: '领用玄铁护臂', desc: '元婴境可用。战力 +18，炼体与淬身气血消耗减少。', cost: 180, requireRealm: 3, gainItems: { 'sect-armlet': 1 } }
+      ] }
+    ],
+    companions: [
+      { id: 'qinghe', name: '青禾', gender: '女', path: 'alchemy', requireRealm: 0, minMorality: 20, desc: '二十八岁的成年丹师，常在山镇义诊。看重言行一致与善意，愿与能相互尊重的人慢慢了解彼此。', actions: { alchemy: { cultivation: 3 }, rest: { health: 3 }, 'partner-cultivate': { health: 2 } } },
+      { id: 'moling', name: '墨凌', gender: '男', path: 'sword', requireRealm: 1, minMorality: 0, desc: '四十二岁的成年剑修，说话直接、守诺如一。欣赏稳扎稳打的练习，也尊重对方独自修行的时间。', actions: { train: { physique: 1 }, 'sword-intent': { cultivation: 4 } }, powerBonus: 6 },
+      { id: 'shenxing', name: '沈行', gender: '男', path: 'wander', requireRealm: 0, minMorality: -20, desc: '三十一岁的成年游方客，爱记录各地风物。待人宽厚但有自己的边界，希望伴侣也是能平等同行的朋友。', actions: { explore: { stones: 12 }, 'free-roam': { resolve: 2 }, 'partner-cultivate': { spirit: 1 } } },
+      { id: 'yanluo', name: '燕落', gender: '女', path: 'thunder', requireRealm: 2, minMorality: -40, desc: '九十六岁的成年雷修，行事果断，不以传闻判断人。她愿意了解过去，但要求双方为眼下的选择负责。', actions: { 'thunder-temper': { health: 2 }, 'spirit-practice': { cultivation: 4 } }, powerBonus: 10 },
+      { id: 'suyue', name: '素月', gender: '女', path: 'ice', requireRealm: 4, minMorality: 10, desc: '三百六十岁的成年玄冰修士，寡言而细心。看重安静陪伴与彼此信任，不会把境界高低当作亲近的理由。', actions: { comprehend: { insight: 1 }, 'frost-breath': { health: 2 }, 'partner-cultivate': { resolve: 2 } }, powerBonus: 12 },
+      { id: 'zhuyin', name: '烛隐', gender: '男', path: 'soul', requireRealm: 7, minMorality: -80, desc: '两千四百岁的成年仙界魂修，曾历经许多是非。他重视清楚说出的心意，也不替任何人回避行为的后果。', actions: { 'soul-lantern': { resolve: 2 }, 'partner-cultivate': { cultivation: 10, spirit: 1 } }, powerBonus: 25 }
+    ],
+    dungeons: [
+      { id: 'mist-gorge', name: '雾隐峡', desc: '山雾、断桥与一座封存药圃组成最初的历练。适合准备了疗伤物资的新修士。', requireRealm: 0, entryCost: 60, difficulty: 28, reward: { effects: { stones: 180, cultivation: 40 }, gainItems: { herb: 3, 'qi-pill': 1 } } },
+      { id: 'sunken-palace', name: '沉璧水府', desc: '沿水下甬道穿过三重旧阵，寻找水府主人留下的行气道痕。', requireRealm: 2, entryCost: 220, difficulty: 160, reward: { effects: { stones: 550, cultivation: 110 }, gainItems: { 'breakthrough-pill': 1 }, grantPerk: 'tide-memory' } },
+      { id: 'thunder-vault', name: '万雷古府', desc: '大乘境方能承受古府余威。残存的雷池、守卫与篆文都不会因来客强大而轻易退让。', requireRealm: 5, entryCost: 600, difficulty: 560, reward: { effects: { stones: 1400, cultivation: 260 }, gainItems: { ward: 2 }, grantPerk: 'thunder-mark' } },
+      { id: 'star-ruins', name: '星海残墟', desc: '飞升仙界后开启。三段破碎星路通向一枚仍在指引归途的道标。', requireRealm: 7, entryCost: 1200, difficulty: 950, reward: { effects: { stones: 2800, cultivation: 500 }, gainItems: { 'phoenix-elixir': 1 }, grantPerk: 'star-compass' } },
+      { id: 'emperor-tomb', name: '古帝传道陵', desc: '金仙境后的艰险试炼。穿越三重道境，得到古帝留下的修行体悟，帝位仍要靠自己突破。', requireRealm: 10, entryCost: 3000, difficulty: 1800, reward: { effects: { stones: 7000, cultivation: 1100 }, gainItems: { 'phoenix-elixir': 2 }, grantPerk: 'ancient-crown' } }
+    ],
+    opponents: [
+      { id: 'ferry-guard', name: '渡口守卫陆川', desc: '成年修士，守着商旅往来的渡口。接受点到即止的切磋；若遭劫掠，会尽力反击。', requireRealm: 0, powerOffset: -8, loot: 90 },
+      { id: 'roaming-swordsman', name: '游剑客程岳', desc: '成年剑客，走南闯北积累剑术。愿意以武会友，随身盘缠则不会轻易交出。', requireRealm: 1, powerOffset: 8, loot: 180 },
+      { id: 'rogue-alchemist', name: '散丹师阮闻', desc: '成年丹师，独自经营灵药生意。看似文弱却准备了许多护身手段。', requireRealm: 3, powerOffset: 20, loot: 300 },
+      { id: 'immortal-sentinel', name: '仙关守将白朔', desc: '成年仙界修士，值守星路关隘。境界相近也不可轻敌，敌意会换来真正的反击。', requireRealm: 7, powerOffset: 40, loot: 800 }
+    ],
+    auctionPool: [
+      { itemId: 'manual', quantity: 1, requireRealm: 0, basePrice: 220 },
+      { itemId: 'qi-pill', quantity: 2, requireRealm: 0, basePrice: 210 },
+      { itemId: 'ward', quantity: 2, requireRealm: 0, basePrice: 170 },
+      { itemId: 'breakthrough-pill', quantity: 1, requireRealm: 0, basePrice: 170 },
+      { itemId: 'star-map', quantity: 1, requireRealm: 2, basePrice: 680 },
+      { itemId: 'thunder-jade', quantity: 1, requireRealm: 4, basePrice: 1400 },
+      { itemId: 'void-bell', quantity: 1, requireRealm: 7, basePrice: 3800 },
+      { itemId: 'emperor-seal', quantity: 1, requireRealm: 10, basePrice: 9200 },
+      { itemId: 'phoenix-elixir', quantity: 1, requireRealm: 7, basePrice: 4500 }
     ],
     stories: [
       { id: 'escort', name: '一程风雪', desc: '商队等着你护送两段山路。订金已经收下，尾款要等交付后领取。', actionId: 'escort-work', target: 2, duration: 3, followupEvent: 'escort-finish', rewardDesc: '交付获得灵石 260，并留下长期收获「商路故交」。' },
@@ -148,6 +221,65 @@
       { id: 'beast', name: '山雨里的小兽', desc: '受伤的幼兽住进了你的院子。两次耐心照料之后，再决定它的去处。', actionId: 'beast-care', target: 2, duration: 3, followupEvent: 'beast-finish', rewardDesc: '照料完成后可结为伙伴，获得长期收获「灵兽相伴」。' }
     ],
     events: [
+      { id: 'misfortune-torn-pack', title: '夜路上的断绳', icon: '险', body: '山路湿滑，行囊的背绳突然断开，几件东西滚向斜坡。你可以舍弃一份灵矿稳住身形，也可以护住行囊，承受这一跤。', negative: true, minYear: 2, weight: 1.6, choices: [
+        { text: '放开一份灵矿，先站稳脚步', result: '矿石滚入了深沟。你稳住身体，把余下的东西重新绑好。', costItems: { ore: 1 }, effects: { resolve: -3 } },
+        { text: '护住行囊，慢慢爬回山路', result: '东西保住了，手臂却被碎石划伤。夜路比想象中难走。', effects: { health: -8, resolve: -4 } }
+      ] },
+      { id: 'misfortune-poison-fog', title: '药谷的瘴气', icon: '瘴', body: '潮湿谷底突然升起灰雾，来时的路已经模糊。气息带着刺痛，越久留越危险。', negative: true, weight: 1.7, choices: [
+        { text: '用续脉膏护住经脉后撤离', result: '药膏压住了大部分瘴毒。你仍有些疲惫，但经脉没有留下损伤。', costItems: { 'healing-salve': 1 }, effects: { health: -3, resolve: -3 } },
+        { text: '屏息撤离，先保住退路', result: '你终于走出灰雾，却已有瘴毒伤及经脉。需要休整或药物治疗。', effects: { health: -11, resolve: -5 }, addCondition: 'injured' }
+      ] },
+      { id: 'misfortune-inn-fire', title: '客栈走水', icon: '火', body: '半夜，隔壁房梁突然起火。浓烟灌入走廊，楼上还有人未醒。无论如何都要尽快离开。', negative: true, weight: 1.4, choices: [
+        { text: '破开窗梁，接应楼上的住客', result: '你顶着热浪撑住了一截梁木。', check: { stat: 'power', difficulty: 38, success: { result: '住客们顺着绳索逃出火场，你的手臂被烫伤，却救下了几个人。', effects: { health: -6, reputation: 5, morality: 7 } }, failure: { result: '梁木先一步倒塌。你被赶来的巡夜人拉出火场，身上留下伤势。', effects: { health: -18, resolve: -8, morality: 3 }, addCondition: 'injured' } } },
+        { text: '敲响警钟，从侧门撤离', result: '警钟唤醒了附近的人。你穿过浓烟逃出，仍被热浪灼伤。', effects: { health: -7, resolve: -5, morality: 1 } }
+      ] },
+      { id: 'misfortune-false-debt', title: '无端追来的债单', icon: '讼', body: '一名陌生人拿着模糊手印，硬说你欠下盘缠。围观者越聚越多，对方带来的人也堵住了去路。', negative: true, weight: 1.2, choices: [
+        { text: '花 90 灵石打发纠缠，尽快脱身', result: '对方拿到钱便散开了。这件事毫无道理，却实实在在耗掉了盘缠。', effects: { stones: -90, resolve: -5 } },
+        { text: '守住证据，请附近执事查明', result: '来回对证耗去许多精力，推搡中也受了轻伤。最后债单被认定为伪造。', effects: { health: -5, resolve: -9, morality: 2 } }
+      ] },
+      { id: 'misfortune-sect-censure', title: '山门传来的质询', icon: '戒', body: '你近来的恶名传到了山门，执事要求解释。曾经的师承并不会让过去的行为自动消失。', negative: true, requireSect: true, maxMorality: -20, weight: 2, choices: [
+        { text: '交出 25 贡献弥补受损公物', result: '执事收回相应贡献，记下你的补偿。名声不会立刻恢复，但至少迈出了修正的一步。', require: { contribution: 25 }, effects: { contribution: -25, morality: 8, resolve: -3 } },
+        { text: '公开说明过失，接受责问', result: '质询让你难堪，也让一些被忽略的后果变得清楚。你答应今后以实际行动补偿。', effects: { reputation: -5, resolve: -12, morality: 5 } }
+      ] },
+      { id: 'misfortune-dao-deviation', title: '周天逆流', icon: '逆', body: '一次寻常吐纳忽然引动旧伤，灵力在经脉里逆行。继续强行运转只会把损伤扩大。', negative: true, minRealm: 4, weight: 1.5, choices: [
+        { text: '耗一张护身符，稳住紊乱灵息', result: '符纸在掌心化灰，帮你撑过了最剧烈的一阵冲击。', costItems: { ward: 1 }, effects: { health: -5, resolve: -5, cultivation: -15 } },
+        { text: '立即散去部分修为，终止周天', result: '你保住了继续修行的根本，经脉仍需一段时间恢复。', effects: { cultivation: -45, health: -15, resolve: -6 }, addCondition: 'injured' }
+      ] },
+      { id: 'misfortune-old-grievance', title: '旧怨找上门', icon: '怨', body: '过去受过你欺压的人找到了同伴，拦在山口要求一个交代。此刻的选择仍会继续影响你的名声。', negative: true, minRealm: 1, maxMorality: -20, weight: 2, choices: [
+        { text: '拿出 200 灵石补偿旧事', result: '对方收下补偿，但没有立刻说出原谅。至少这一次，你正面承认了责任。', effects: { stones: -200, morality: 12, resolve: -5 } },
+        { text: '以武力逼退追问者', result: '你再次运转灵力，把争执推向对抗。', effects: { morality: -8 }, check: { stat: 'power', difficulty: 110, success: { result: '众人暂时退开，关于你的传闻却只会更坏。', effects: { health: -8, reputation: -4 } }, failure: { result: '这次你未能压住对方，受伤后才得以离开。', effects: { health: -24, resolve: -8 }, addCondition: 'injured' } } },
+        { text: '请巡山使调停，承认自己的过失', result: '调停终止了冲突，但你仍挨了一记愤怒的拳头。旧事不会消失，修正可以从现在开始。', effects: { health: -8, reputation: -5, resolve: -8, morality: 8 } }
+      ] },
+      { id: 'misfortune-good-name', title: '求援者挤满院门', icon: '困', body: '你的善名招来了许多求助。药材和人手都不足，逐一奔走已经超出体力，但他们眼下确实没有别的去处。', negative: true, minMorality: 20, weight: 1.6, choices: [
+        { text: '花 120 灵石请医师来分担', result: '有了足够人手，最紧急的伤病先得到处理。你付出一笔盘缠，也终于能缓一口气。', effects: { stones: -120, resolve: -3, morality: 7 } },
+        { text: '按轻重缓急逐一转介，亲自跑完各处', result: '事情没有一夜解决，但大家都有了求助方向。等最后一个人离开，你已经疲惫不堪。', effects: { health: -10, resolve: -9, morality: 3 } }
+      ] },
+      { id: 'misfortune-heart-demon', title: '识海里的旧影', icon: '魇', body: '多年前的恐惧突然出现在静室，真假难分。那并非外敌，而是修行中从未认真面对的旧影。', negative: true, minRealm: 2, weight: 1.6, choices: [
+        { text: '守住心境，直面旧影', result: '你让那些画面浮现，不再假装它们不存在。', check: { stat: 'resolve', difficulty: 55, success: { result: '旧影缓缓散开。这次对视十分疲惫，却让你更了解自己的弱处。', effects: { resolve: -4, insight: 5 } }, failure: { result: '过往情绪涌来得太快，你费力才找回当下的身体。', effects: { health: -14, resolve: -18 } } } },
+        { text: '结束内观，靠熟悉的日常稳住自己', result: '你点亮窗边的灯，听着院外声响等天亮。这一夜并没有答案，但你没有继续陷下去。', effects: { health: -6, resolve: -9 } }
+      ] },
+      { id: 'misfortune-blood-ledger', title: '恶名录上的新一页', icon: '债', body: '你的名字被记进几处坊市的恶名录。与其说是诅咒，不如说越来越多人不再信任你；旧日受害者也开始结伴讨还公道。', negative: true, maxMorality: -60, weight: 2.4, choices: [
+        { text: '交出 300 灵石，逐一补偿有据的损失', result: '补偿不能抹去已经发生的事，但有人愿意记下你这一次的改变。', effects: { stones: -300, morality: 18, reputation: -3, resolve: -8 } },
+        { text: '收敛行止，承认旧账并接受追责', result: '你散去一部分争斗中积累的灵息，任由对方留下问责印记。重建信任还需要很久。', effects: { cultivation: -60, health: -10, resolve: -12, morality: 12 } }
+      ] },
+      { id: 'misfortune-immortal-toll', title: '仙渡临时封关', icon: '关', body: '仙界渡口因界潮紊乱临时封关。补阵物资由过路者分担，也可以留下来承担一段维持阵线的苦役。', negative: true, minRealm: 7, weight: 1.6, choices: [
+        { text: '缴纳 900 灵石，补足阵材', result: '阵材记在公开的清单里，守关者放你通行。仙界的远行同样需要盘缠。', effects: { stones: -900, resolve: -5 } },
+        { text: '亲自维持阵线，换取通行', result: '你撑到替班的人赶来，体内灵息已被阵线磨去一截，气血也明显衰弱。', effects: { cultivation: -90, health: -13, resolve: -10 } }
+      ] },
+      { id: 'misfortune-space-rift', title: '星路裂隙', icon: '裂', body: '脚下星路突然断裂，空间乱流扯住衣角。此地已经没有从容绕路的余地，只能选择如何脱身。', negative: true, minRealm: 7, weight: 1.8, choices: [
+        { text: '用两张护身符护住全身，借力脱离', result: '两层符光先后破碎，替你挡住了最致命的乱流。', costItems: { ward: 2 }, effects: { health: -7, resolve: -6 } },
+        { text: '强行破开乱流', result: '你将灵力凝在身前，向薄弱处突进。', check: { stat: 'power', difficulty: 1000, success: { result: '裂隙被短暂撑开，你拖着疲惫身体冲回星路。', effects: { health: -11, resolve: -8 } }, failure: { result: '乱流先一步撕开护体灵力，留下了严重的经脉伤势。', effects: { health: -32, resolve: -14 }, addCondition: 'injured' } } },
+        { text: '散去修为，换取最稳妥的退路', result: '你让一部分灵息抵消乱流，总算回到稳定星路。即使这样，经脉也已受伤。', effects: { cultivation: -140, health: -16, resolve: -8 }, addCondition: 'injured' }
+      ] },
+      { id: 'misfortune-broken-oath', title: '道誓回响', icon: '誓', body: '境界越深，曾经违背的承诺就越难被遗忘。金仙道果中传来不协调的回响，逼你面对这些年留下的因果。', negative: true, minRealm: 10, maxMorality: -20, weight: 2, choices: [
+        { text: '拿出 1500 灵石补偿仍可挽回的损失', result: '并非所有人都愿意接受，但你的行动令道果中的裂声稍稍平息。', effects: { stones: -1500, morality: 16, resolve: -12 } },
+        { text: '正视道誓，舍去不稳的修为', result: '你不再用更强的力量掩住裂缝。这一段修为散去，气血也受到重创，之后仍需要以行动守信。', effects: { cultivation: -280, health: -25, resolve: -16, morality: 12 } }
+      ] },
+      { id: 'misfortune-rogue-betrayal', title: '同行者的暗手', icon: '变', body: '曾与你谈论劫掠的同行者盯上了你的行囊。恶名并不会替你换来可靠的盟友，夜里的营火已经被人围住。', negative: true, minRealm: 2, maxMorality: -40, weight: 1.8, choices: [
+        { text: '留下 250 灵石，趁对方分赃离开', result: '你走出营地，知道这份同行关系从来不值得信赖。', effects: { stones: -250, resolve: -10 } },
+        { text: '先发制人，以武力突围', result: '你拔起一根燃木，为自己争取退路。', effects: { morality: -6 }, check: { stat: 'power', difficulty: 180, success: { result: '包围被打出缺口，你受了些伤，总算保住行囊。', effects: { health: -9, resolve: -6 } }, failure: { result: '对方早有准备，你付出更重的伤势才脱身。', effects: { health: -24, resolve: -14 }, addCondition: 'injured' } } },
+        { text: '舍弃不稳灵息作为诱饵，远离这群人', result: '一道散出的灵息引开了注意。你翻出营地，身心俱疲，也开始反省这些年结下的关系。', effects: { cultivation: -55, health: -10, resolve: -10, morality: 5 } }
+      ] },
       { id: 'path-sword-echo', title: '无锋石上的剑痕', icon: '剑', body: '废弃剑坪上，一位老人正用木枝描摹石面的旧痕。他看出你练的是剑，邀你接着前人的笔势补完最后一剑。', requirePath: 'sword', once: true, minYear: 2, weight: 2.2, choices: [
         { text: '以自身剑意续上石痕', result: '你捡起木枝，慢慢调匀呼吸。', check: { stat: 'physique', difficulty: 35, success: { result: '木枝没有折断，剑势却完整地落在了石上。老人点出发力的关节，这一剑从此留在你心里。', effects: { cultivation: 20, reputation: 3 }, grantPerk: 'sword-echo' }, failure: { result: '剑意在最后一寸散开，反震让手臂隐隐发痛。老人收起木枝，提醒你先练稳自己的节奏。', effects: { health: -6, insight: 2 } } } },
         { text: '先看老人把整套剑势演完', result: '你记下起剑与收剑的分寸，知道还有哪些基本功需要慢慢磨。', effects: { insight: 2 } }
@@ -205,8 +337,8 @@
         { text: '封存拓片，离开洞府', result: '你把未完的推演留在了卷末。这一次，故事停在石门前。', resolveStory: { id: 'secret', outcome: 'abandoned' } }
       ] },
       { id: 'beast-invite', title: '山雨里的小兽', icon: '灵', body: '雨水淋湿一团云纹绒毛。幼兽的后腿受了伤，正缩在树根下。带回去以后，需要在三年内安排两次「照料幼兽」。', once: true, weight: 3, bias: [{ stat: 'spirit', direction: 'high', factor: 0.8 }], choices: [
-        { text: '带回院子，慢慢照料', result: '你用外衣裹好它。它还不信任人，但终于不再发抖。', startStory: 'beast' },
-        { text: '送到附近兽医那里', result: '兽医接过小兽，点亮了药房的灯。你放心地继续赶路。' }
+        { text: '带回院子，慢慢照料', result: '你用外衣裹好它。它还不信任人，但终于不再发抖。', effects: { morality: 3 }, startStory: 'beast' },
+        { text: '送到附近兽医那里', result: '兽医接过小兽，点亮了药房的灯。你放心地继续赶路。', effects: { morality: 2 } }
       ] },
       { id: 'beast-finish', title: '院门前的脚步', icon: '伴', body: '院门一直开着。若你完成了照料，小兽会自己选择是否留下；你也可以把它送回山野。', storyOnly: true, storyId: 'beast', choices: [
         { text: '伸出手，结为伙伴', result: '它绕着你走了一圈，最后把额头贴在掌心。从此漫长的山路多了一串脚印。', requireStoryComplete: 'beast', effects: { spirit: 5, resolve: 8 }, grantPerk: 'beast-companion', resolveStory: { id: 'beast', outcome: 'completed' } },
@@ -229,8 +361,8 @@
         { text: '请他从头讲一遍', result: '你听完了一个下午的药理课。', effects: { insight: 2 } }
       ] },
       { id: 'village-bridge', title: '断桥两岸', icon: '桥', body: '小镇的桥被水冲断，菜担和药箱都过不了河。镇民凑不齐修桥的材料钱。', once: true, weight: 2, choices: [
-        { text: '拿出 120 灵石助修桥', result: '新桥落成那天，镇民在桥头给你留了一碗热汤。从此这里有人记得你的名字。', effects: { stones: -120, reputation: 8 }, grantPerk: 'village-contact' },
-        { text: '留下修桥图纸和建议', result: '你帮忙找到一段更浅的河道，镇民决定先搭一座便桥。', effects: { reputation: 1 } }
+        { text: '拿出 120 灵石助修桥', result: '新桥落成那天，镇民在桥头给你留了一碗热汤。从此这里有人记得你的名字。', effects: { stones: -120, reputation: 8, morality: 8 }, grantPerk: 'village-contact' },
+        { text: '留下修桥图纸和建议', result: '你帮忙找到一段更浅的河道，镇民决定先搭一座便桥。', effects: { reputation: 1, morality: 2 } }
       ] },
       { id: 'library-dust', title: '无人整理的藏书楼', icon: '书', body: '旧城藏书楼的卷宗堆满灰尘。守楼人说，若有人能理清这些经卷的次序，愿意长期借书给他。', once: true, bias: [{ stat: 'insight', direction: 'high', factor: 1.4 }], choices: [
         { text: '尝试整理经卷次序', result: '你从最旧的一卷开始核对。', check: { stat: 'insight', difficulty: 40, success: { result: '卷与卷之间终于接上了。守楼人递给你一枚借书木牌。', grantPerk: 'library-pass', effects: { insight: 4 } }, failure: { result: '你整理好半架杂书，剩下的疑处仍需后人慢慢考证。', effects: { insight: 2, resolve: -2 } } } },
@@ -257,8 +389,8 @@
         { text: '以茶代剑，聊聊见闻', result: '话说开以后，你们都多认识了一个赶路人。', effects: { reputation: 1, resolve: 2 } }
       ] },
       { id: 'merchant-cache', title: '遗落的货箱', icon: '箱', body: '一只刻着商号标记的货箱被卡在河岸。你可以把它送回驿站，也可以沿河找找失主。', choices: [
-        { text: '把整只货箱送回驿站', result: '驿卒核对完封条，按规矩给了你一份答谢。', effects: { stones: 45, reputation: 2 } },
-        { text: '写下地点，请驿卒来取', result: '你留下记号，很快看见驿卒带人赶来。', effects: { reputation: 1 } }
+        { text: '把整只货箱送回驿站', result: '驿卒核对完封条，按规矩给了你一份答谢。', effects: { stones: 45, reputation: 2, morality: 4 } },
+        { text: '写下地点，请驿卒来取', result: '你留下记号，很快看见驿卒带人赶来。', effects: { reputation: 1, morality: 2 } }
       ] },
       { id: 'dry-well', title: '枯井下的微光', icon: '井', body: '荒村古井里有灵气飘出。井壁狭窄，探下去可能找到矿石，也可能被陈年浊气伤到。', minRealm: 1, choices: [
         { text: '撑起灵力，入井查看', result: '你沿井壁缓缓下降。', check: { stat: 'power', difficulty: 55, success: { result: '井底有一条早已枯竭的灵脉，还能采下几块完整灵矿。', gainItems: { ore: 4 }, effects: { cultivation: 15 } }, failure: { result: '浊气突然涌起。你攀回井口，经脉却已受伤。', effects: { health: -15 }, addCondition: 'injured' } } },
@@ -277,12 +409,12 @@
         { text: '试着面对那件心事', result: '你让念头逐一浮上心头。', check: { stat: 'resolve', difficulty: 40, success: { result: '原来让你不安的事并没有想象中那么大。', effects: { insight: 4, resolve: 8 } }, failure: { result: '今夜仍没有答案。你及时停下，决定以后再想。', effects: { resolve: -3 } } } }
       ] },
       { id: 'wounded-traveler', title: '路边的伤者', icon: '药', body: '一位修士靠着树干喘息，护体灵光已经很弱。他需要一份续脉膏才能继续赶路。', choices: [
-        { text: '拿出一份续脉膏', result: '伤者渐渐缓过气。他坚持用一袋灵石答谢你，留下了善意的约定。', costItems: { 'healing-salve': 1 }, effects: { stones: 130, reputation: 5 } },
-        { text: '扶他到最近的医馆', result: '医馆的人接过担架，山路上的灯多亮了一盏。', effects: { reputation: 2 } }
+        { text: '拿出一份续脉膏', result: '伤者渐渐缓过气。他坚持用一袋灵石答谢你，留下了善意的约定。', costItems: { 'healing-salve': 1 }, effects: { stones: 130, reputation: 5, morality: 6 } },
+        { text: '扶他到最近的医馆', result: '医馆的人接过担架，山路上的灯多亮了一盏。', effects: { reputation: 2, morality: 3 } }
       ] },
       { id: 'rain-garden', title: '雨后药圃', icon: '芽', body: '连日细雨让山谷里的野生药草长得极好。主人留下木牌：成熟的可以采，幼苗请留给来年。', choices: [
         { text: '只采成熟的两株', result: '两份药草装进了背囊，幼苗仍在雨珠下摇晃。', gainItems: { herb: 2 } },
-        { text: '替药圃疏通积水', result: '水沟通了，香气从湿润的泥土里升起来。', effects: { resolve: 4, insight: 1 } }
+        { text: '替药圃疏通积水', result: '水沟通了，香气从湿润的泥土里升起来。', effects: { resolve: 4, insight: 1, morality: 2 } }
       ] },
       { id: 'mountain-tea-gift', title: '半山茶棚', icon: '茶', body: '茶棚主人正愁搬不动一只水缸。你顺手帮忙后，他拿出一包自制的云雾灵茶。', once: true, choices: [
         { text: '收下灵茶，留待闭关前用', result: '小纸包中带着山雾般清淡的香气。', gainItems: { 'mountain-tea': 1 } },
@@ -341,8 +473,8 @@
         { text: '记下天象，稳住自己的道', result: '你收回目光，从能理解的部分开始。', effects: { cultivation: 20, insight: 2 } }
       ] },
       { id: 'last-letter', title: '晚辈来信', icon: '信', body: '一位刚刚入道的年轻人写信请教：修行很慢，是否说明自己走错了路。字迹像极了你初入山门时的模样。', minRealm: 3, choices: [
-        { text: '认真写下曾经的失败与重来', result: '你没有只写风光的部分。信写到最后，连自己也觉得安心了些。', effects: { resolve: 8, reputation: 3 } },
-        { text: '赠送一枚聚气丹与祝福', result: '你告诉他，丹药只能添一点修为，自己的路还要慢慢走。', costItems: { 'qi-pill': 1 }, effects: { reputation: 7, resolve: 5 } }
+        { text: '认真写下曾经的失败与重来', result: '你没有只写风光的部分。信写到最后，连自己也觉得安心了些。', effects: { resolve: 8, reputation: 3, morality: 3 } },
+        { text: '赠送一枚聚气丹与祝福', result: '你告诉他，丹药只能添一点修为，自己的路还要慢慢走。', costItems: { 'qi-pill': 1 }, effects: { reputation: 7, resolve: 5, morality: 5 } }
       ] },
       { id: 'quiet-snow', title: '无事的一场雪', icon: '雪', body: '这一年没有遗迹开启，也没有谁来寻仇。雪盖住山路，你在炉边翻书，忽然觉得平静本身也是修行。', weight: 1.5, choices: [
         { text: '温茶读书，等雪慢慢停', result: '书读到旧处，又多懂了一点。', effects: { insight: 2, resolve: 5 } },
