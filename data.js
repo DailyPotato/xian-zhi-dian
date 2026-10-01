@@ -2,14 +2,14 @@
   'use strict';
 
   const D = {
-    version: 1,
+    version: 2,
     realms: [
-      { id: 'qi', name: '炼气', threshold: 90, subtitle: '引气入体 · 初闻大道' },
-      { id: 'foundation', name: '筑基', threshold: 180, subtitle: '道基初成 · 择山而栖' },
-      { id: 'core', name: '金丹', threshold: 280, subtitle: '一粒金丹 · 山河入眼' },
-      { id: 'soul', name: '元婴', threshold: 420, subtitle: '婴神离窍 · 问心问道' },
-      { id: 'divinity', name: '化神', threshold: 560, subtitle: '神游太虚 · 叩问天门' },
-      { id: 'ascended', name: '飞升', threshold: 0, subtitle: '此身越青冥 · 旧事留人间' }
+      { id: 'qi', name: '炼气', threshold: 90, lifespan: 100, subtitle: '引气入体 · 初闻大道' },
+      { id: 'foundation', name: '筑基', threshold: 180, lifespan: 200, subtitle: '道基初成 · 择山而栖' },
+      { id: 'core', name: '金丹', threshold: 280, lifespan: 500, subtitle: '一粒金丹 · 山河入眼' },
+      { id: 'soul', name: '元婴', threshold: 420, lifespan: 1000, subtitle: '婴神离窍 · 问心问道' },
+      { id: 'divinity', name: '化神', threshold: 560, lifespan: 2000, subtitle: '神游太虚 · 叩问天门' },
+      { id: 'ascended', name: '飞升', threshold: 0, lifespan: null, subtitle: '此身越青冥 · 旧事留人间' }
     ],
     roots: [
       { id: 'metal', name: '金灵根', desc: '金气锐利，炼体与锻器时更容易有所收获。', start: { physique: 6 }, actions: { train: { physique: 2 }, forge: { cultivation: 3 } } },

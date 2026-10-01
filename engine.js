@@ -21,7 +21,7 @@
   function create(c={}){
     const origin=find(D.roots,c.root)||D.roots[0],path=find(D.paths,c.path)||D.paths[0];
     const talents=[...new Set(c.talents||[])].filter(id=>find(D.talents,id)).slice(0,2);
-    const s={version:1,name:String(c.name||'无名散修').trim().slice(0,16)||'无名散修',root:origin.id,path:path.id,talents,sect:null,
+    const s={version:2,name:String(c.name||'无名散修').trim().slice(0,16)||'无名散修',root:origin.id,path:path.id,talents,sect:null,
       seed:(Number.isInteger(c.seed)?c.seed:Date.now())>>>0,year:1,age:16,realm:0,phase:'planning',plan:[],
       cultivation:0,insight:12,physique:12,spirit:10,health:85,resolve:80,stones:240,reputation:0,contribution:0,
       inventory:{},buffs:{},conditions:[],perks:[],stories:{},seen:[],log:[],pendingEvent:null,lastEvent:null,lastYear:null,ending:null,breakthroughs:0,failures:0};
@@ -30,6 +30,7 @@
     log(s,'每年安排三件事。修为积满后，留一格行动尝试突破；也别忘了气血与心境。');return s;
   }
   const realmInfo=s=>D.realms[s.realm];
+  function lifespanStatus(s){const limit=realmInfo(s).lifespan,nextLimit=D.realms[s.realm+1]?.lifespan??null;return {limit,remaining:limit===null?null:Math.max(0,limit-s.age),immortal:limit===null,nextLimit,gain:limit===null||nextLimit===null?null:nextLimit-limit};}
   function benefits(s){return [find(D.roots,s.root),find(D.paths,s.path),find(D.sects,s.sect),...s.talents.map(id=>find(D.talents,id)),...D.items.filter(i=>i.kind==='equipment'&&s.inventory[i.id]),...D.buffs.filter(b=>s.buffs[b.id]),...D.perks.filter(p=>s.perks.includes(p.id))].filter(Boolean);}
   function power(s){return Math.round(s.realm*22+s.physique*.45+s.spirit*.35+s.reputation*.1+benefits(s).reduce((n,b)=>n+(b.powerBonus||0),0));}
   function actionPreview(s,id){const a=find(D.actions,id);if(!a)throw Error('未知行动');const e={...a.effects};for(const b of benefits(s))for(const[k,v]of Object.entries(b.actions?.[id]||{}))e[k]=(e[k]||0)+v;return e;}
@@ -87,7 +88,7 @@
   function consequenceError(s,c){
     for(const[id,n]of Object.entries(c.costItems||{}))if((s.inventory[id]||0)<n)return `需要${find(D.items,id).name} ×${n}`;
     for(const[id,n]of Object.entries(c.gainItems||{}))if((s.inventory[id]||0)-(c.costItems?.[id]||0)+n>find(D.items,id).max)return find(D.items,id).name+'已经拥有或行囊已满';
-    if(c.startStory){const def=find(D.stories,c.startStory);if(s.stories[def.id])return '这段因缘已经体验过';if(s.year+def.duration>60)return '此生剩余时光不足以开启这段因缘';}
+    if(c.startStory){const def=find(D.stories,c.startStory);if(s.stories[def.id])return '这段因缘已经体验过';const life=lifespanStatus(s);if(!life.immortal&&s.age+def.duration>=life.limit)return '剩余寿元不足以完成这段因缘，可先突破延寿';}
     if(c.resolveStory&&s.stories[c.resolveStory.id]?.status!=='active')return '这段因缘已结束';
     const needed=c.requireStoryComplete||(c.resolveStory?.outcome==='completed'?c.resolveStory.id:null);
     if(needed){const st=s.stories[needed],def=find(D.stories,needed);if(st?.status!=='active'||st.progress<def.target)return `尚需完成${def.target}次${find(D.actions,def.actionId).name}`;}
@@ -124,17 +125,20 @@
   function eventPool(s){const ready=D.stories.filter(d=>{const st=s.stories[d.id];return st?.status==='active'&&(st.progress>=d.target||s.year>=st.dueYear);}).sort((a,b)=>s.stories[a.id].dueYear-s.stories[b.id].dueYear||a.id.localeCompare(b.id));if(ready.length)return [find(D.events,ready[0].followupEvent)];const eligible=D.events.filter(e=>eventWeight(s,e)>0),unseen=eligible.filter(e=>!s.seen.includes(e.id));return unseen.length?unseen:eligible;}
   function selectEvent(s){const pool=eventPool(s);if(!pool.length)throw Error('没有可用的奇遇');let roll=random(s)*pool.reduce((n,e)=>n+(e.storyOnly?1:eventWeight(s,e)),0),event=pool[pool.length-1];for(const e of pool){roll-=e.storyOnly?1:eventWeight(s,e);if(roll<0){event=e;break;}}s.pendingEvent=event.id;s.phase='event';if(!s.seen.includes(event.id))s.seen.push(event.id);}
   function endingFor(s){
-    if(s.realm>=5)return {id:'ascended',title:'天门开，故山仍青',desc:'你以自己的道越过最后一道天劫。山河在脚下远去，那些同行过的人、守过的约定，都成了道心的一部分。仙途从这里，续写另一卷。'};
-    if(s.health<=0)return {id:'fallen',title:'一盏命灯，归于山风',desc:'伤势终究耗尽了这一程的气血。你留下的书卷与因缘仍有人记得。来世修行，记得给疗伤和休养留一席。'};
-    if(s.realm>=4)return {id:'master',title:'人间自有一位真君',desc:'六十载修行，你已能照拂一方山河。天门未开并非失败；留下来守护自己珍视之物，也是大道。'};
+    if(s.realm>=5)return {id:'ascended',reason:'ascended',title:'天门开，故山仍青',desc:'你以自己的道越过最后一道天劫，寿元不再受人间岁月限制。山河在脚下远去，那些同行过的人、守过的约定，都成了道心的一部分。仙途从这里，续写另一卷。'};
+    if(s.health<=0)return {id:'fallen',reason:'fallen',title:'一盏命灯，归于山风',desc:'伤势终究耗尽了这一程的气血。你留下的书卷与因缘仍有人记得。来世修行，记得给疗伤和休养留一席。'};
+    const result=mortalEnding(s);return {...result,reason:'lifespan',desc:`${s.age} 岁，${realmInfo(s).name}之境的寿元已尽。${result.desc}`};
+  }
+  function mortalEnding(s){
+    if(s.realm>=4)return {id:'master',title:'人间自有一位真君',desc:'漫长修行中，你曾照拂一方山河。天门未开并非失败；留下来守护自己珍视之物，也是大道。'};
     if(s.path==='alchemy'&&s.insight>=65)return {id:'healer',title:'一炉丹火，万家灯明',desc:'你的丹药走过远比你更远的山路。有人以境界铭刻一生，你选择以救治过的人作答。'};
     if(s.perks.length>=2)return {id:'companions',title:'山长水阔，总有故人',desc:'你曾答应的事，许多已经做到了。商路上的朋友、山中的伙伴，都是岁月留下的回声。修行之外，你也拥有了丰盛的一生。'};
     if(s.stones>=3000)return {id:'merchant',title:'仙市灯火，为你长明',desc:'灵石、见识与可靠的信誉，让你在修真界站稳了脚跟。你仍然修行，也给后来者留了一处不必风餐露宿的地方。'};
     if(s.sect)return {id:'elder',title:'山门深处，桃李成林',desc:'你回到了熟悉的山门。传道、护山、看新人第一次御剑，成为往后岁月里安静的喜悦。'};
-    return {id:'wanderer',title:'一蓑烟雨，自在平生',desc:'六十年的山水，早已写进你的心里。境界之外，你知道何时前行，何时停下饮一盏茶。此生没有白走。'};
+    return {id:'wanderer',title:'一蓑烟雨，自在平生',desc:'一生走过的山水，早已写进你的心里。境界之外，你知道何时前行，何时停下饮一盏茶。此生没有白走。'};
   }
   function end(s){s.phase='ending';s.plan=[];s.pendingEvent=null;for(const [id,st]of Object.entries(s.stories))if(st.status==='active'){st.status='abandoned';st.resolvedYear=s.year;st.ending='此卷修行已尽，未竟因缘留给后来人。';log(s,find(D.stories,id).name+'：未竟因缘收入行卷。','story');}s.ending=endingFor(s);log(s,s.ending.title,'milestone');}
-  function attempt(s){const status=breakthroughStatus(s);if(!status.ready)return ['突破暂缓：'+status.reason];const from=realmInfo(s).name;if(random(s)<status.chance){s.cultivation-=status.threshold;s.realm++;s.breakthroughs++;apply(s,{health:15,resolve:10,insight:3,reputation:8});return [`突破成功：${from} → ${realmInfo(s).name}`];}s.failures++;apply(s,{cultivation:-Math.ceil(status.threshold*.2),health:-10,resolve:-8});return ['突破未成：保留大部分修为，稍作休整仍可再试。'];}
+  function attempt(s){const status=breakthroughStatus(s);if(!status.ready)return ['突破暂缓：'+status.reason];const from=realmInfo(s).name,beforeLife=lifespanStatus(s);if(random(s)<status.chance){s.cultivation-=status.threshold;s.realm++;s.breakthroughs++;apply(s,{health:15,resolve:10,insight:3,reputation:8});const life=lifespanStatus(s);return [`突破成功：${from} → ${realmInfo(s).name}`,life.immortal?'飞升超脱，寿元无尽。':`寿元上限 ${beforeLife.limit} → ${life.limit} 岁（增加 ${life.limit-beforeLife.limit} 年），当前剩余 ${life.remaining} 年。`];}s.failures++;apply(s,{cultivation:-Math.ceil(status.threshold*.2),health:-10,resolve:-8});return ['突破未成：寿元未变。保留大部分修为，稍作休整仍可再试。'];}
   function advance(s){
     if(s.phase!=='planning'||s.plan.length!==3)throw Error('请安排满三件事再度过这一年');
     const budget=planResources(s);if(budget)throw Error(budget);
@@ -174,33 +178,39 @@
     const result=branch?.result||choice.result||'山中岁月，又添一笔。';
     const expired=expireBuffs(s);changes.push(...expired);for(const text of changes)log(s,text,'story');
     s.lastEvent={title:event.title,result,outcome,chance,effects:diff(before,snap(s)),changes};log(s,event.title+'：'+result,'event');s.pendingEvent=null;
-    if(s.health<=0||s.year>=60)end(s);else{s.year++;s.age++;s.phase='planning';}
+    if(s.health<=0)end(s);else{s.year++;s.age++;const life=lifespanStatus(s);if(!life.immortal&&s.age>=life.limit){s.lastEvent.changes.push(`岁末长一岁，已至 ${s.age} 岁，寿元已尽。`);log(s,`岁末长一岁，已至 ${s.age} 岁，寿元已尽。`,'milestone');end(s);}else s.phase='planning';}
     return clone(s.lastEvent);
   }
   function choose(s,index){const next=clone(s),result=chooseYear(next,index);Object.assign(s,next);return result;}
   function effectsText(e){return Object.entries(e||{}).filter(([k,v])=>labels[k]&&v).map(([k,v])=>`${labels[k]} ${v>0?'+':''}${v}`).join(' · ')||'无数值变化';}
   function validate(input){
     const s=input,own=(o,k)=>Object.prototype.hasOwnProperty.call(o,k);
-    if(!s||typeof s!=='object'||Array.isArray(s)||s.version!==1)throw Error('无法识别行卷版本');
+    if(!s||typeof s!=='object'||Array.isArray(s)||![1,2].includes(s.version))throw Error('无法识别行卷版本');
+    const legacy=s.version===1;
     if(typeof s.name!=='string'||s.name.length>16||!find(D.roots,s.root)||!find(D.paths,s.path))throw Error('修士档案无效');
     if(!Array.isArray(s.talents)||s.talents.length>2||new Set(s.talents).size!==s.talents.length||s.talents.some(id=>!find(D.talents,id)))throw Error('命格无效');
     if(s.sect!==null&&!find(D.sects,s.sect))throw Error('师承无效');
-    const ranges={seed:[0,4294967295],year:[1,60],age:[16,75],realm:[0,5],cultivation:[0,100000],stones:[0,1000000],contribution:[0,100000],breakthroughs:[0,5],failures:[0,60]};for(const k of capped)ranges[k]=[0,100];
+    const maxLife=Math.max(...D.realms.map(r=>r.lifespan||0));
+    const ranges={seed:[0,4294967295],year:[1,legacy?60:maxLife-15],age:[16,legacy?75:maxLife],realm:[0,5],cultivation:[0,1000000],stones:[0,1000000],contribution:[0,1000000],breakthroughs:[0,5],failures:[0,legacy?60:maxLife-16]};for(const k of capped)ranges[k]=[0,100];
     for(const[k,[a,b]]of Object.entries(ranges))if(!Number.isInteger(s[k])||s[k]<a||s[k]>b)throw Error('行卷数值无效：'+k);
     if(s.age!==s.year+15||s.breakthroughs!==s.realm)throw Error('修行年月或境界记录不一致');
+    const life=lifespanStatus(s);
+    if(!life.immortal&&(s.age>life.limit||s.phase!=='ending'&&s.age>=life.limit))throw Error('年龄已超出当前寿元');
     if(!['planning','event','ending'].includes(s.phase)||s.phase!=='ending'&&(s.realm===5||s.health===0))throw Error('行卷阶段无效');
     if(!Array.isArray(s.plan)||s.plan.length>3||s.plan.some(id=>!find(D.actions,id))||s.plan.filter(id=>id==='breakthrough').length>1||s.phase!=='planning'&&s.plan.length)throw Error('修行安排无效');
     const object=(v)=>v&&typeof v==='object'&&!Array.isArray(v);
     for(const[key,cat,max]of [['inventory',D.items,i=>i.max],['buffs',D.buffs,b=>b.duration]]){if(s[key]===undefined)continue;if(!object(s[key]))throw Error('行囊记录无效');for(const[id,n]of Object.entries(s[key])){const d=find(cat,id);if(!d||!Number.isInteger(n)||n<1||n>max(d))throw Error('行囊数量无效');}}
     for(const[key,cat]of [['perks',D.perks],['conditions',D.conditions]])if(s[key]!==undefined&&(!Array.isArray(s[key])||new Set(s[key]).size!==s[key].length||s[key].some(id=>!find(cat,id))))throw Error('因缘状态无效');
-    if(s.stories!==undefined){if(!object(s.stories))throw Error('因缘记录无效');for(const[id,st]of Object.entries(s.stories)){const d=find(D.stories,id);if(!d||!object(st)||!['active','completed','abandoned'].includes(st.status)||!Number.isInteger(st.progress)||st.progress<0||st.progress>d.target||!Number.isInteger(st.startedYear)||st.startedYear<1||st.startedYear>s.year||st.dueYear!==st.startedYear+d.duration||st.dueYear>60||typeof st.ending!=='string'||st.ending.length>2000)throw Error('因缘进度无效');if(st.status==='active'&&(st.resolvedYear!==null||st.ending||s.phase==='ending'))throw Error('进行中的因缘无效');if(st.status!=='active'&&(!Number.isInteger(st.resolvedYear)||st.resolvedYear<st.startedYear||st.resolvedYear>s.year))throw Error('因缘结局时间无效');if(st.status==='completed'&&st.progress<d.target)throw Error('因缘尚未完成');}}
+    if(s.stories!==undefined){if(!object(s.stories))throw Error('因缘记录无效');for(const[id,st]of Object.entries(s.stories)){const d=find(D.stories,id);if(!d||!object(st)||!['active','completed','abandoned'].includes(st.status)||!Number.isInteger(st.progress)||st.progress<0||st.progress>d.target||!Number.isInteger(st.startedYear)||st.startedYear<1||st.startedYear>s.year||st.dueYear!==st.startedYear+d.duration||st.dueYear>(legacy?60:(life.limit??maxLife)-16)||typeof st.ending!=='string'||st.ending.length>2000)throw Error('因缘进度无效');if(st.status==='active'&&(st.resolvedYear!==null||st.ending||s.phase==='ending'))throw Error('进行中的因缘无效');if(st.status!=='active'&&(!Number.isInteger(st.resolvedYear)||st.resolvedYear<st.startedYear||st.resolvedYear>s.year))throw Error('因缘结局时间无效');if(st.status==='completed'&&st.progress<d.target)throw Error('因缘尚未完成');}}
     if(!Array.isArray(s.seen)||new Set(s.seen).size!==s.seen.length||s.seen.some(id=>!find(D.events,id)))throw Error('奇遇记录无效');
     if(!Array.isArray(s.log)||s.log.length>180||s.log.some(l=>!l||!Number.isInteger(l.year)||l.year<1||l.year>s.year||typeof l.text!=='string'||l.text.length>3000||typeof l.type!=='string'))throw Error('行记无效');
     const evt=find(D.events,s.pendingEvent);if(s.phase==='event'&&(!evt||evt.storyOnly&&s.stories?.[evt.storyId]?.status!=='active')||s.phase!=='event'&&s.pendingEvent!==null)throw Error('待处理奇遇无效');
     for(const key of ['lastYear','lastEvent'])if(s[key]!==undefined&&s[key]!==null){const r=s[key];if(!object(r)||!object(r.effects)||Object.entries(r.effects).some(([k,v])=>!own(labels,k)||!Number.isFinite(v)||Math.abs(v)>1000000))throw Error('结算记录无效');const notes=key==='lastYear'?r.notes:r.changes;if(!Array.isArray(notes)||notes.length>80||notes.some(t=>typeof t!=='string'||t.length>3000))throw Error('经历记录无效');if(key==='lastYear'&&(!Number.isInteger(r.year)||r.year<1||r.year>s.year))throw Error('结算年月无效');if(key==='lastEvent'&&(typeof r.title!=='string'||r.title.length>200||typeof r.result!=='string'||r.result.length>3000||!['normal','success','failure'].includes(r.outcome)||(r.chance!==null&&(!Number.isFinite(r.chance)||r.chance<.1||r.chance>.95))))throw Error('奇遇结算无效');}
-    if(s.phase==='ending'&&s.year!==60&&s.realm!==5&&s.health>0)throw Error('此生尚未结束');
-    const clean=create({name:s.name,root:s.root,path:s.path,talents:s.talents,seed:s.seed});for(const k of Object.keys(clean))if(own(s,k))clean[k]=clone(s[k]);if(s.phase==='ending')clean.ending=endingFor(clean);else clean.ending=null;return clean;
+    if(s.phase==='ending'&&s.realm!==5&&s.health>0&&(legacy?s.year!==60:s.age!==life.limit))throw Error('此生尚未结束');
+    const clean=create({name:s.name,root:s.root,path:s.path,talents:s.talents,seed:s.seed});for(const k of Object.keys(clean))if(own(s,k))clean[k]=clone(s[k]);clean.version=2;
+    if(legacy&&s.phase==='ending'&&s.health>0&&s.realm<5){clean.year++;clean.age++;clean.phase='planning';clean.ending=null;log(clean,`寿元规则已更新：${realmInfo(clean).name}寿元 ${lifespanStatus(clean).limit} 岁，你在 ${clean.age} 岁继续仙途。过往因缘与所得均已保留。`,'milestone');}
+    else if(clean.phase==='ending')clean.ending=endingFor(clean);else clean.ending=null;return clean;
   }
-  const E={create,drawTalents,realmInfo,power,breakthroughStatus,actionPreview,actionError,addPlan,removePlan,setPlan,advance,choose,eventPool,eventWeight,choiceError,checkChance,consequencesText,itemStatus,buyItem,useItem,joinSect,sectError,storyStatus,effectsText,labels,validate,clone};
+  const E={create,drawTalents,realmInfo,lifespanStatus,power,breakthroughStatus,actionPreview,actionError,addPlan,removePlan,setPlan,advance,choose,eventPool,eventWeight,choiceError,checkChance,consequencesText,itemStatus,buyItem,useItem,joinSect,sectError,storyStatus,effectsText,labels,validate,clone};
   root.X_ENGINE=E;if(typeof module!=='undefined')module.exports=E;
 })(typeof globalThis!=='undefined'?globalThis:window);
