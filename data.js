@@ -2,7 +2,7 @@
   'use strict';
 
   const D = {
-    version: 3,
+    version: 4,
     realms: [
       { id: 'qi', name: '炼气', threshold: 90, lifespan: 100, world: 'mortal', subtitle: '引气入体 · 初闻大道' },
       { id: 'foundation', name: '筑基', threshold: 180, lifespan: 200, world: 'mortal', subtitle: '道基初成 · 择山而栖' },
@@ -19,6 +19,15 @@
       { id: 'venerable', name: '仙尊', threshold: 7500, lifespan: 1000000, world: 'immortal', subtitle: '诸天问道 · 万法归一' },
       { id: 'emperor', name: '仙帝', threshold: 0, lifespan: null, world: 'immortal', subtitle: '道临诸天 · 此生登巅' }
     ],
+    rootGrades: [
+      { id: 'heavenly', name: '天灵根', weight: 8, minElements: 1, maxElements: 1, cultivationMultiplier: 1.4, breakthroughBonus: 0.06, desc: '单一五行灵根精纯，正向行动修为为通常的 140%，破境成功率提高 6 个百分点。' },
+      { id: 'variant', name: '变异灵根', weight: 12, minElements: 1, maxElements: 1, cultivationMultiplier: 1.25, breakthroughBonus: 0.04, desc: '冰、雷、风、阴或阳之力凝于一身，正向行动修为为通常的 125%，破境成功率提高 4 个百分点。' },
+      { id: 'dual', name: '双灵根', weight: 25, minElements: 2, maxElements: 2, cultivationMultiplier: 1.1, breakthroughBonus: 0.02, desc: '两种五行灵根互济，正向行动修为为通常的 110%，破境成功率提高 2 个百分点。任一元素契合流派即可获得契合加成。' },
+      { id: 'triple', name: '三灵根', weight: 30, minElements: 3, maxElements: 3, cultivationMultiplier: 1, breakthroughBonus: 0, desc: '三种五行灵根并存，修为与破境概率按通常规则。可与更多流派契合，适合逐步积累。' },
+      { id: 'mixed', name: '杂灵根', weight: 25, minElements: 4, maxElements: 5, cultivationMultiplier: 0.8, breakthroughBonus: -0.03, desc: '四至五种五行灵根交杂，正向行动修为为通常的 80%，破境成功率降低 3 个百分点。元素适应面广，仍可凭悟性、丹药和传承登巅。' },
+      { id: 'legacy', name: '原有灵根', weight: 0, minElements: 1, maxElements: 1, cultivationMultiplier: 1, breakthroughBonus: 0, desc: '旧行卷原有的单一灵根，保留既有元素与收益，不追加资质倍率或破境修正。' }
+    ],
+    worldTimes: { talk: 1, gift: 1, bond: 1, separate: 1, auction: 1, dungeonEnter: 1, dungeonCareful: 3, dungeonBold: 2, spar: 1, rob: 1, promotion: 1, sectJoin: 1 },
     roots: [
       { id: 'metal', name: '金灵根', desc: '金气锐利，炼体与锻器时更容易有所收获。', start: { physique: 6 }, actions: { train: { physique: 2 }, forge: { cultivation: 3 } } },
       { id: 'wood', name: '木灵根', desc: '亲近草木，采药能养神，炼丹时灵息更顺。', start: { health: 10 }, actions: { gather: { spirit: 2 }, alchemy: { cultivation: 4 } } },
@@ -82,42 +91,60 @@
       { id: 'tea-friend', name: '一盏清茶', rarity: 'common', desc: '参悟与讲经各额外心境 +3。', actions: { comprehend: { resolve: 3 }, lecture: { resolve: 3 } } }
     ],
     sects: [
-      { id: 'cloud-sword', name: '云岚剑宗', desc: '云海之上练剑，重根骨与实战。炼体额外体魄 +2，差事额外修为 +5；破境成功率 +4 个百分点。', requireRealm: 1, actions: { train: { physique: 2 }, mission: { cultivation: 5 } }, breakthroughBonus: 0.04 },
-      { id: 'red-valley', name: '丹霞谷', desc: '以药理入道，门中丹火不熄。炼丹额外修为 +6，采药额外神识 +1；坊市购买享九折。', requireRealm: 1, actions: { alchemy: { cultivation: 6 }, gather: { spirit: 1 } }, shopDiscount: 0.10 },
-      { id: 'rain-pavilion', name: '听雨阁', desc: '典籍万卷，亦问人间冷暖。参悟额外悟性 +2，讲经额外修为 +4；破境成功率 +3 个百分点。', requireRealm: 1, actions: { comprehend: { insight: 2 }, lecture: { cultivation: 4 } }, breakthroughBonus: 0.03 }
+      { id: 'green-mountain', name: '青石山', tierLabel: '启蒙山门', desc: '愿意接纳初入仙途者的小山门。采药气血消耗减少 2，休整额外心境 +2，凡间营生额外灵石 +5。', requireRealm: 0, actions: { gather: { health: 2 }, rest: { resolve: 2 }, work: { stones: 5 } } },
+      { id: 'cloud-sword', name: '云岚剑宗', tierLabel: '人间宗门', desc: '云海之上练剑，重根骨与实战。炼体额外体魄 +2，差事额外修为 +5；破境成功率 +4 个百分点。', requireRealm: 1, actions: { train: { physique: 2 }, mission: { cultivation: 5 } }, breakthroughBonus: 0.04 },
+      { id: 'red-valley', name: '丹霞谷', tierLabel: '人间宗门', desc: '以药理入道，门中丹火不熄。炼丹额外修为 +6，采药额外神识 +1；坊市购买享九折。', requireRealm: 1, actions: { alchemy: { cultivation: 6 }, gather: { spirit: 1 } }, shopDiscount: 0.10 },
+      { id: 'rain-pavilion', name: '听雨阁', tierLabel: '人间宗门', desc: '典籍万卷，亦问人间冷暖。参悟额外悟性 +2，讲经额外修为 +4；破境成功率 +3 个百分点。', requireRealm: 1, actions: { comprehend: { insight: 2 }, lecture: { cultivation: 4 } }, breakthroughBonus: 0.03 },
+      { id: 'star-observatory', name: '玄星观', tierLabel: '上宗', desc: '元婴修士可登观星台。参悟与凝神各额外修为 +6，参悟额外悟性 +1，破境成功率 +4 个百分点。', requireRealm: 3, actions: { comprehend: { cultivation: 6, insight: 1 }, 'spirit-practice': { cultivation: 6 } }, breakthroughBonus: 0.04 },
+      { id: 'myriad-dao', name: '万象道宫', tierLabel: '人间圣地', desc: '大乘之后可入的传道圣地。静室修炼额外修为 +10，山门差事额外贡献 +8，破境成功率 +5 个百分点。', requireRealm: 5, actions: { meditate: { cultivation: 10 }, mission: { contribution: 8 } }, breakthroughBonus: 0.05 },
+      { id: 'celestial-court', name: '太清仙庭', tierLabel: '仙界仙宗', desc: '真仙可拜入的仙界传承。静室修炼额外修为 +18，同心共修额外修为 +10，破境成功率 +6 个百分点；坊市九折。', requireRealm: 7, actions: { meditate: { cultivation: 18 }, 'partner-cultivate': { cultivation: 10 } }, breakthroughBonus: 0.06, shopDiscount: 0.10 },
+      { id: 'golden-palace', name: '九霄金阙', tierLabel: '仙界道统', desc: '金仙之后方能叩门。静室修炼额外修为 +26，山门差事额外灵石 +80，战力 +35，破境成功率 +8 个百分点。', requireRealm: 10, actions: { meditate: { cultivation: 26 }, mission: { stones: 80 } }, powerBonus: 35, breakthroughBonus: 0.08 }
+    ],
+    sectRanks: [
+      { id: 'outer', name: '外门弟子', requireRealm: 0, requireMerit: 0, desc: '从熟悉门规与基础差事做起，积累在本门的功绩。', actions: {} },
+      { id: 'inner', name: '内门弟子', requireRealm: 1, requireMerit: 60, desc: '山门差事额外贡献 +5，战力 +2；解锁山门巡防。', actions: { mission: { contribution: 5 } }, powerBonus: 2 },
+      { id: 'core', name: '真传弟子', requireRealm: 2, requireMerit: 160, desc: '山门差事额外贡献 +10、灵石 +15，战力 +5；可研读更深经义。', actions: { mission: { contribution: 10, stones: 15 } }, powerBonus: 5 },
+      { id: 'steward', name: '执事', requireRealm: 3, requireMerit: 400, desc: '山门差事额外贡献 +16，巡防额外灵石 +15，战力 +8；负责一处堂口事务。', actions: { mission: { contribution: 16 }, 'sect-patrol': { stones: 15 } }, powerBonus: 8 },
+      { id: 'elder', name: '长老', requireRealm: 4, requireMerit: 850, desc: '山门差事额外贡献 +24，战力 +15；解锁开坛授业，以道法培养后辈。', actions: { mission: { contribution: 24 } }, powerBonus: 15 },
+      { id: 'grand-elder', name: '太上长老', requireRealm: 6, requireMerit: 1800, desc: '山门差事额外贡献 +35，开坛授业额外修为 +8，战力 +25。', actions: { mission: { contribution: 35 }, 'teach-disciples': { cultivation: 8 } }, powerBonus: 25 },
+      { id: 'immortal-elder', name: '仙界长老', requireRealm: 8, requireMerit: 3000, desc: '山门差事额外贡献 +50，战力 +45；解锁仙域议事，仙宗藏经阁开放太清仙经。', actions: { mission: { contribution: 50 } }, powerBonus: 45 },
+      { id: 'lord', name: '宗主', requireRealm: 11, requireMerit: 6000, desc: '山门差事额外贡献 +70，仙域议事额外灵石 +80，战力 +80；执掌本门传承。', actions: { mission: { contribution: 70 }, 'domain-council': { stones: 80 } }, powerBonus: 80 }
     ],
     actions: [
-      { id: 'meditate', name: '静室修炼', category: '修行', icon: '◉', desc: '收摄心神，运转一个大周天。修为到达门槛后，需要另排一次破境。', effects: { cultivation: 20, resolve: -4 } },
-      { id: 'comprehend', name: '参悟经典', category: '修行', icon: '卷', desc: '把不懂的经文读懂。悟性会提高破境与相关奇遇检定的成功率。', effects: { insight: 5, cultivation: 6, resolve: -2 } },
-      { id: 'train', name: '瀑下炼体', category: '修行', icon: '劲', desc: '以水压磨炼筋骨。体魄是战力的重要来源。', effects: { physique: 6, cultivation: 5, health: -7 } },
-      { id: 'spirit-practice', name: '凝神观想', category: '修行', icon: '神', desc: '借一盏灯守住识海。神识有助于战力和探查类奇遇。', effects: { spirit: 6, cultivation: 5, resolve: -3 } },
-      { id: 'breakthrough', name: '闭关破境', category: '修行', icon: '劫', desc: '修为足够且气血、心境至少 20 时可安排。成功进入下一境；失败损失部分修为。', effects: {}, hint: '每年最多一次；悟性、心境与破境丹影响成功率。' },
-      { id: 'explore', name: '山海游历', category: '游历', icon: '山', desc: '走出静室，访山寻水。挣些盘缠，也让修行有了见闻。', effects: { cultivation: 8, spirit: 2, reputation: 2, stones: 30, health: -5 } },
-      { id: 'inscription', name: '参悟古碑', category: '游历', icon: '碑', desc: '付给守碑人一些香火钱，研读前辈留下的道痕。', effects: { insight: 4, cultivation: 16, stones: -40, resolve: -3 }, requireRealm: 1 },
-      { id: 'gather', name: '入山采药', category: '生活', icon: '草', desc: '沿山阴寻找灵草。所得药草可用于炼丹，也可应对奇遇。', effects: { cultivation: 3, health: -3 }, gainItems: { herb: 2 }, hint: '获得药草 ×2。' },
-      { id: 'mine', name: '灵脉采矿', category: '生活', icon: '石', desc: '在旧矿洞凿取灵矿，顺便赚一点工钱。矿石可用于锻器。', effects: { physique: 2, health: -5, stones: 20 }, gainItems: { ore: 2 }, hint: '获得灵矿 ×2。' },
-      { id: 'alchemy', name: '开炉炼丹', category: '生活', icon: '丹', desc: '用两份药草炼一枚聚气丹。丹药可随时在背囊中服用。', effects: { cultivation: 12, spirit: 2, stones: -30 }, costItems: { herb: 2 }, gainItems: { 'qi-pill': 1 }, hint: '消耗药草 ×2；获得聚气丹 ×1。' },
-      { id: 'forge', name: '绘符锻器', category: '生活', icon: '符', desc: '把灵矿中的金气封入护身符，留给下一次险地之行。', effects: { cultivation: 8, physique: 2, stones: -40 }, costItems: { ore: 2 }, gainItems: { ward: 1 }, hint: '消耗灵矿 ×2；获得护身符 ×1。' },
-      { id: 'work', name: '凡间营生', category: '生活', icon: '市', desc: '替镇上看铺、运货，修行人也要挣自己的盘缠。', effects: { stones: 80, reputation: 1, resolve: -2 } },
-      { id: 'rest', name: '归舍休整', category: '生活', icon: '茶', desc: '好好吃饭睡觉。恢复气血与心境，并养好受伤状态。', effects: { health: 20, resolve: 15 }, clearCondition: 'injured', hint: '解除「经脉受伤」。' },
-      { id: 'mission', name: '山门差事', category: '山门', icon: '令', desc: '巡山、送信、护阵。积累山门贡献，并领取灵石酬劳。', effects: { contribution: 20, stones: 60, reputation: 2, cultivation: 6, health: -5 }, requireSect: true },
-      { id: 'lecture', name: '听长老讲经', category: '山门', icon: '经', desc: '用 10 点山门贡献预约讲经，再备 30 灵石束脩，请长老拆解修行关隘。', effects: { insight: 8, cultivation: 25, stones: -30, contribution: -10 }, requireSect: true, hint: '消耗 10 山门贡献、30 灵石；可先安排山门差事积累贡献。' },
-      { id: 'sword-study', name: '练习御剑', category: '修行', icon: '剑', desc: '持一柄真正的法剑磨炼剑势。法剑的常驻战力仍会保留。', effects: { physique: 5, spirit: 3, cultivation: 13, health: -5 }, requireItem: 'sword', hint: '需要青锋法剑；法剑不会消耗。' },
-      { id: 'escort-work', name: '护送商队', category: '游历', icon: '辙', desc: '沿约定路线押运货车。每完成一次，商队护送进度增加一格。', effects: { stones: 40, reputation: 2, physique: 2, health: -4 }, requireStory: 'escort' },
-      { id: 'secret-study', name: '秘境考据', category: '游历', icon: '阵', desc: '逐段校对古阵的缺口。每完成一次，古阵研究进度增加一格。', effects: { insight: 3, cultivation: 13, resolve: -4 }, requireStory: 'secret' },
-      { id: 'beast-care', name: '照料幼兽', category: '生活', icon: '灵', desc: '喂食、换药，等它终于愿意靠近。每完成一次，照料进度增加一格。', effects: { spirit: 3, resolve: 5, health: -2 }, requireStory: 'beast' },
-      { id: 'sword-intent', name: '问剑悟意', category: '修行', icon: '剑', desc: '不借法剑的锋利，先磨炼出剑时的心意。兼修筋骨与剑气，需付出少量气血与心境。', effects: { cultivation: 14, physique: 4, spirit: 1, health: -4, resolve: -2 }, requirePath: 'sword', hint: '剑修专属；无需持有法剑。' },
-      { id: 'dual-pill', name: '双炉合丹', category: '修行', icon: '丹', desc: '交替掌控两炉火候，将同一份药性分成两枚聚气丹。丹药收入背囊，需自行决定服用时机。', effects: { cultivation: 6, insight: 2, stones: -45 }, requirePath: 'alchemy', costItems: { herb: 2 }, gainItems: { 'qi-pill': 2 }, hint: '丹修专属；药草 ×2、灵石 45 → 聚气丹 ×2。' },
-      { id: 'free-roam', name: '乘风行吟', category: '修行', icon: '游', desc: '沿山水缓行，以见闻化入吐纳。赚得的盘缠不多，却能在旅途中养神定心。', effects: { cultivation: 10, spirit: 2, resolve: 5, stones: 12, health: -3 }, requirePath: 'wander', hint: '逍遥专属；比专程游历少赚灵石，额外恢复心境。' },
-      { id: 'body-temper', name: '熬骨淬身', category: '修行', icon: '体', desc: '用山石与水压反复磨炼筋骨。体魄增长显著，但气血消耗也大；受伤时不可强练。', effects: { cultivation: 10, physique: 8, health: -12, resolve: -2 }, requirePath: 'body', hint: '体修专属；经脉受伤时不能安排。' },
-      { id: 'formation-weave', name: '推阵结符', category: '修行', icon: '阵', desc: '借一份灵矿推演小阵，将阵眼的灵光封入纸符。所得护身符可留待险地使用。', effects: { cultivation: 8, insight: 3, stones: -30 }, requirePath: 'formation', costItems: { ore: 1 }, gainItems: { ward: 1 }, hint: '阵修专属；灵矿 ×1、灵石 30 → 护身符 ×1。' },
-      { id: 'beast-attune', name: '万灵共鸣', category: '修行', icon: '兽', desc: '在林间静听飞鸟走兽的呼吸，学习以神识回应。尚无灵兽伙伴时，也能从万物中修行。', effects: { cultivation: 10, spirit: 5, resolve: 3, health: -2 }, requirePath: 'beast', hint: '御兽专属；无需先获得灵兽伙伴。' },
-      { id: 'frost-breath', name: '寒潭吐纳', category: '修行', icon: '冰', desc: '以一缕寒息压下杂念，让灵气缓缓凝练。悟性与心境一并成长，寒意却会消磨气血。', effects: { cultivation: 17, insight: 2, resolve: 3, health: -5 }, requirePath: 'ice', hint: '玄冰专属；养心增悟，需要定期温养气血。' },
-      { id: 'thunder-temper', name: '引雷淬脉', category: '修行', icon: '雷', desc: '引入细微雷意锻炼经脉，以更大的消耗换取修为。雷势虽小，也需要完整的身体承受。', effects: { cultivation: 24, physique: 3, spirit: 2, health: -14, resolve: -7 }, requirePath: 'thunder', hint: '雷修专属；高气血、心境消耗，经脉受伤时不能安排。' },
-      { id: 'soul-lantern', name: '照魂守灯', category: '修行', icon: '魂', desc: '点亮识海中的心灯，照见散乱念头。神识增长突出，但长久内观也会疲惫，需要休养心境。', effects: { cultivation: 12, spirit: 7, health: -3, resolve: -7 }, requirePath: 'soul', hint: '魂修专属；神识成长快，心境消耗较高。' },
-      { id: 'sun-breath', name: '朝阳采气', category: '修行', icon: '阳', desc: '在日出时采一缕温和阳气，以修为滋养筋骨。能恢复部分气血，心境仍需靠日常休整。', effects: { cultivation: 14, health: 8, physique: 1, resolve: -5 }, requirePath: 'yang', hint: '纯阳专属；恢复气血，但不解除经脉受伤。' },
-      { id: 'partner-cultivate', name: '同心共修', category: '修行', icon: '缘', desc: '与彼此认可的道侣一同参悟，交流各自的修行所得。双方心意相通，修为与神识也能相互印证。', effects: { cultivation: 18, spirit: 3, resolve: 4 }, requirePartner: true, hint: '需要已结为道侣的成年伙伴；共修不会消耗关系。' },
-      { id: 'charity', name: '赈济乡里', category: '生活', icon: '善', desc: '花 60 灵石购置粮药，亲自送到需要的人手里。善行能改善外界评价，也是挽回恶名的一条踏实道路。', effects: { stones: -60, morality: 8, reputation: 2, resolve: 2 }, hint: '所有流派均可安排；道德评价 +8。' }
+      { id: 'meditate', timeMonths: 3, realmTime: true, name: '静室修炼', category: '修行', icon: '◉', desc: '收摄心神，运转一个大周天。修为到达门槛后，可另行闭关破境；修为越深，完整周天所需时间越长。', effects: { cultivation: 20, resolve: -4 } },
+      { id: 'comprehend', timeMonths: 2, realmTime: true, name: '参悟经典', category: '修行', icon: '卷', desc: '把不懂的经文读懂。悟性会提高破境与相关奇遇检定的成功率。', effects: { insight: 5, cultivation: 6, resolve: -2 } },
+      { id: 'train', timeMonths: 2, realmTime: true, name: '瀑下炼体', category: '修行', icon: '劲', desc: '以水压磨炼筋骨。体魄是战力的重要来源。', effects: { physique: 6, cultivation: 5, health: -7 } },
+      { id: 'spirit-practice', timeMonths: 2, realmTime: true, name: '凝神观想', category: '修行', icon: '神', desc: '借一盏灯守住识海。神识有助于战力和探查类奇遇。', effects: { spirit: 6, cultivation: 5, resolve: -3 } },
+      { id: 'breakthrough', timeMonths: 6, realmTime: true, name: '闭关破境', category: '修行', icon: '劫', desc: '修为足够且气血、心境至少 20 时可开始闭关。必须留足完成闭关的寿元；成功进入下一境，失败损失部分修为。', effects: {}, hint: '耗时随境界增长；悟性、心境、灵根资质与破境丹影响成功率。' },
+      { id: 'explore', timeMonths: 3, realmTime: false, name: '山海游历', category: '游历', icon: '山', desc: '走出静室，访山寻水。挣些盘缠，也让修行有了见闻。', effects: { cultivation: 8, spirit: 2, reputation: 2, stones: 30, health: -5 } },
+      { id: 'inscription', timeMonths: 3, realmTime: true, name: '参悟古碑', category: '游历', icon: '碑', desc: '付给守碑人一些香火钱，研读前辈留下的道痕。', effects: { insight: 4, cultivation: 16, stones: -40, resolve: -3 }, requireRealm: 1 },
+      { id: 'gather', timeMonths: 1, realmTime: false, name: '入山采药', category: '生活', icon: '草', desc: '沿山阴寻找灵草。所得药草可用于炼丹，也可应对奇遇。', effects: { cultivation: 3, health: -3 }, gainItems: { herb: 2 }, hint: '获得药草 ×2。' },
+      { id: 'mine', timeMonths: 1, realmTime: false, name: '灵脉采矿', category: '生活', icon: '石', desc: '在旧矿洞凿取灵矿，顺便赚一点工钱。矿石可用于锻器。', effects: { physique: 2, health: -5, stones: 20 }, gainItems: { ore: 2 }, hint: '获得灵矿 ×2。' },
+      { id: 'alchemy', timeMonths: 2, realmTime: false, name: '开炉炼丹', category: '生活', icon: '丹', desc: '用两份药草炼一枚聚气丹。丹药可随时在背囊中服用。', effects: { cultivation: 12, spirit: 2, stones: -30 }, costItems: { herb: 2 }, gainItems: { 'qi-pill': 1 }, hint: '消耗药草 ×2；获得聚气丹 ×1。' },
+      { id: 'forge', timeMonths: 2, realmTime: false, name: '绘符锻器', category: '生活', icon: '符', desc: '把灵矿中的金气封入护身符，留给下一次险地之行。', effects: { cultivation: 8, physique: 2, stones: -40 }, costItems: { ore: 2 }, gainItems: { ward: 1 }, hint: '消耗灵矿 ×2；获得护身符 ×1。' },
+      { id: 'work', timeMonths: 1, realmTime: false, name: '凡间营生', category: '生活', icon: '市', desc: '替镇上看铺、运货，修行人也要挣自己的盘缠。', effects: { stones: 80, reputation: 1, resolve: -2 } },
+      { id: 'rest', timeMonths: 1, realmTime: false, name: '归舍休整', category: '生活', icon: '茶', desc: '好好吃饭睡觉。恢复气血与心境，并养好受伤状态。', effects: { health: 20, resolve: 15 }, clearCondition: 'injured', hint: '解除「经脉受伤」。' },
+      { id: 'mission', timeMonths: 2, realmTime: false, name: '山门差事', category: '山门', icon: '令', desc: '巡山、送信、护阵。积累山门贡献，并领取灵石酬劳。', effects: { contribution: 20, stones: 60, reputation: 2, cultivation: 6, health: -5 }, requireSect: true },
+      { id: 'lecture', timeMonths: 2, realmTime: true, name: '听长老讲经', category: '山门', icon: '经', desc: '用 10 点山门贡献预约讲经，再备 30 灵石束脩，请长老拆解修行关隘。', effects: { insight: 8, cultivation: 25, stones: -30, contribution: -10 }, requireSect: true, hint: '消耗 10 山门贡献、30 灵石；可先安排山门差事积累贡献。' },
+      { id: 'sword-study', timeMonths: 2, realmTime: true, name: '练习御剑', category: '修行', icon: '剑', desc: '持一柄真正的法剑磨炼剑势。法剑的常驻战力仍会保留。', effects: { physique: 5, spirit: 3, cultivation: 13, health: -5 }, requireItem: 'sword', hint: '需要青锋法剑；法剑不会消耗。' },
+      { id: 'escort-work', timeMonths: 3, realmTime: false, name: '护送商队', category: '游历', icon: '辙', desc: '沿约定路线押运货车。每完成一次，商队护送进度增加一格。', effects: { stones: 40, reputation: 2, physique: 2, health: -4 }, requireStory: 'escort' },
+      { id: 'secret-study', timeMonths: 4, realmTime: false, name: '秘境考据', category: '游历', icon: '阵', desc: '逐段校对古阵的缺口。每完成一次，古阵研究进度增加一格。', effects: { insight: 3, cultivation: 13, resolve: -4 }, requireStory: 'secret' },
+      { id: 'beast-care', timeMonths: 1, realmTime: false, name: '照料幼兽', category: '生活', icon: '灵', desc: '喂食、换药，等它终于愿意靠近。每完成一次，照料进度增加一格。', effects: { spirit: 3, resolve: 5, health: -2 }, requireStory: 'beast' },
+      { id: 'sword-intent', timeMonths: 3, realmTime: true, name: '问剑悟意', category: '修行', icon: '剑', desc: '不借法剑的锋利，先磨炼出剑时的心意。兼修筋骨与剑气，需付出少量气血与心境。', effects: { cultivation: 14, physique: 4, spirit: 1, health: -4, resolve: -2 }, requirePath: 'sword', hint: '剑修专属；无需持有法剑。' },
+      { id: 'dual-pill', timeMonths: 2, realmTime: false, name: '双炉合丹', category: '修行', icon: '丹', desc: '交替掌控两炉火候，将同一份药性分成两枚聚气丹。丹药收入背囊，需自行决定服用时机。', effects: { cultivation: 6, insight: 2, stones: -45 }, requirePath: 'alchemy', costItems: { herb: 2 }, gainItems: { 'qi-pill': 2 }, hint: '丹修专属；药草 ×2、灵石 45 → 聚气丹 ×2。' },
+      { id: 'free-roam', timeMonths: 3, realmTime: false, name: '乘风行吟', category: '修行', icon: '游', desc: '沿山水缓行，以见闻化入吐纳。赚得的盘缠不多，却能在旅途中养神定心。', effects: { cultivation: 10, spirit: 2, resolve: 5, stones: 12, health: -3 }, requirePath: 'wander', hint: '逍遥专属；比专程游历少赚灵石，额外恢复心境。' },
+      { id: 'body-temper', timeMonths: 3, realmTime: true, name: '熬骨淬身', category: '修行', icon: '体', desc: '用山石与水压反复磨炼筋骨。体魄增长显著，但气血消耗也大；受伤时不可强练。', effects: { cultivation: 10, physique: 8, health: -12, resolve: -2 }, requirePath: 'body', hint: '体修专属；经脉受伤时不能安排。' },
+      { id: 'formation-weave', timeMonths: 2, realmTime: false, name: '推阵结符', category: '修行', icon: '阵', desc: '借一份灵矿推演小阵，将阵眼的灵光封入纸符。所得护身符可留待险地使用。', effects: { cultivation: 8, insight: 3, stones: -30 }, requirePath: 'formation', costItems: { ore: 1 }, gainItems: { ward: 1 }, hint: '阵修专属；灵矿 ×1、灵石 30 → 护身符 ×1。' },
+      { id: 'beast-attune', timeMonths: 2, realmTime: true, name: '万灵共鸣', category: '修行', icon: '兽', desc: '在林间静听飞鸟走兽的呼吸，学习以神识回应。尚无灵兽伙伴时，也能从万物中修行。', effects: { cultivation: 10, spirit: 5, resolve: 3, health: -2 }, requirePath: 'beast', hint: '御兽专属；无需先获得灵兽伙伴。' },
+      { id: 'frost-breath', timeMonths: 3, realmTime: true, name: '寒潭吐纳', category: '修行', icon: '冰', desc: '以一缕寒息压下杂念，让灵气缓缓凝练。悟性与心境一并成长，寒意却会消磨气血。', effects: { cultivation: 17, insight: 2, resolve: 3, health: -5 }, requirePath: 'ice', hint: '玄冰专属；养心增悟，需要定期温养气血。' },
+      { id: 'thunder-temper', timeMonths: 3, realmTime: true, name: '引雷淬脉', category: '修行', icon: '雷', desc: '引入细微雷意锻炼经脉，以更大的消耗换取修为。雷势虽小，也需要完整的身体承受。', effects: { cultivation: 24, physique: 3, spirit: 2, health: -14, resolve: -7 }, requirePath: 'thunder', hint: '雷修专属；高气血、心境消耗，经脉受伤时不能安排。' },
+      { id: 'soul-lantern', timeMonths: 3, realmTime: true, name: '照魂守灯', category: '修行', icon: '魂', desc: '点亮识海中的心灯，照见散乱念头。神识增长突出，但长久内观也会疲惫，需要休养心境。', effects: { cultivation: 12, spirit: 7, health: -3, resolve: -7 }, requirePath: 'soul', hint: '魂修专属；神识成长快，心境消耗较高。' },
+      { id: 'sun-breath', timeMonths: 2, realmTime: true, name: '朝阳采气', category: '修行', icon: '阳', desc: '在日出时采一缕温和阳气，以修为滋养筋骨。能恢复部分气血，心境仍需靠日常休整。', effects: { cultivation: 14, health: 8, physique: 1, resolve: -5 }, requirePath: 'yang', hint: '纯阳专属；恢复气血，但不解除经脉受伤。' },
+      { id: 'partner-cultivate', timeMonths: 3, realmTime: true, name: '同心共修', category: '修行', icon: '缘', desc: '与彼此认可的道侣一同参悟，交流各自的修行所得。双方心意相通，修为与神识也能相互印证。', effects: { cultivation: 18, spirit: 3, resolve: 4 }, requirePartner: true, hint: '需要已结为道侣的成年伙伴；共修不会消耗关系。' },
+      { id: 'charity', timeMonths: 1, realmTime: false, name: '赈济乡里', category: '生活', icon: '善', desc: '花 60 灵石购置粮药，亲自送到需要的人手里。善行能改善外界评价，也是挽回恶名的一条踏实道路。', effects: { stones: -60, morality: 8, reputation: 2, resolve: 2 }, hint: '所有流派均可进行；道德评价 +8。' },
+      { id: 'sect-patrol', timeMonths: 3, realmTime: false, name: '山门巡防', category: '山门', icon: '巡', desc: '带领一队弟子巡查山门边界，修补警戒阵纹。比普通差事更费时，也承担更多责任。', effects: { cultivation: 8, physique: 2, contribution: 32, stones: 80, reputation: 3, health: -4 }, requireSect: true, requireRank: 'inner', hint: '内门弟子及以上可进行；获得的贡献也计入本门累计功绩。' },
+      { id: 'teach-disciples', timeMonths: 3, realmTime: true, name: '开坛授业', category: '山门', icon: '师', desc: '为后辈细讲道法，在答疑中重新梳理自己的修行。讲授的境界越深，需要闭门准备的时间越长。', effects: { cultivation: 22, insight: 4, contribution: 36, reputation: 3, resolve: -4 }, requireSect: true, requireRank: 'elder', hint: '长老及以上可进行；耗时随境界增长。' },
+      { id: 'domain-council', timeMonths: 4, realmTime: false, name: '仙域议事', category: '山门', icon: '议', desc: '代表宗门协调仙域商路、护阵和弟子历练事务。此事重在经营与责任，不能代替自身修炼。', effects: { contribution: 50, stones: 180, reputation: 4, resolve: -6 }, requireSect: true, requireRank: 'immortal-elder', hint: '仙界长老及以上可进行；增加宗门贡献、功绩与灵石。' }
     ],
     items: [
       { id: 'manual', name: '小周天注疏', icon: '卷', kind: 'equipment', price: 280, max: 1, desc: '随身研读的修炼手册。每次静室修炼额外修为 +6，购入后长期生效。', actions: { meditate: { cultivation: 6 } } },
@@ -127,10 +154,10 @@
       { id: 'herb', name: '药草', icon: '草', kind: 'consumable', price: 25, max: 40, desc: '炼丹材料。两份药草可安排一次开炉炼丹；不能直接服用。' },
       { id: 'ore', name: '灵矿', icon: '矿', kind: 'consumable', price: 30, max: 40, desc: '锻器材料。两份灵矿可安排一次绘符锻器；不能直接使用。' },
       { id: 'qi-pill', name: '聚气丹', icon: '丹', kind: 'consumable', price: 150, max: 12, desc: '服用后立即修为 +35。不会自动破境，也不能代替悟性与心境。', useEffects: { cultivation: 35 } },
-      { id: 'ward', name: '护身符', icon: '符', kind: 'consumable', price: 130, max: 6, desc: '使用后连续 3 年战力 +15，每年奇遇结束后扣除一年。同类状态未结束前不能叠加。', buff: 'ward' },
-      { id: 'breakthrough-pill', name: '明心破境丹', icon: '明', kind: 'consumable', price: 220, max: 6, desc: '服用后连续 3 年，破境成功率提高 15 个百分点；每年奇遇结束后扣除一年。同类效果不能叠加。', buff: 'insight' },
+      { id: 'ward', name: '护身符', icon: '符', kind: 'consumable', price: 130, max: 6, desc: '使用后 36 个月内战力 +15，持续时间随实际经过的年月减少。同类状态未结束前不能叠加。', buff: 'ward' },
+      { id: 'breakthrough-pill', name: '明心破境丹', icon: '明', kind: 'consumable', price: 220, max: 6, desc: '服用后 36 个月内，破境成功率提高 15 个百分点。开始闭关时尚有效即可用于此次突破；同类效果不能叠加。', buff: 'insight' },
       { id: 'healing-salve', name: '续脉膏', icon: '药', kind: 'consumable', price: 90, max: 8, desc: '立即恢复气血 25，并解除「经脉受伤」。没有伤势时也可用于补充气血。', useEffects: { health: 25 }, clearCondition: 'injured' },
-      { id: 'mountain-tea', name: '云雾灵茶', icon: '茶', kind: 'consumable', price: 100, max: 6, desc: '立即心境 +10，接下来 3 年参悟额外悟性 +3、静坐额外修为 +4；每年奇遇结束后扣除一年。', useEffects: { resolve: 10 }, buff: 'clear-mind' },
+      { id: 'mountain-tea', name: '云雾灵茶', icon: '茶', kind: 'consumable', price: 100, max: 6, desc: '立即心境 +10，随后 36 个月内参悟额外悟性 +3、静坐额外修为 +4。持续时间随实际经过的年月减少，行动按开始时的状态计算。', useEffects: { resolve: 10 }, buff: 'clear-mind' },
       { id: 'spirit-fruit', name: '赤玉灵果', icon: '果', kind: 'consumable', price: 120, max: 8, desc: '温和滋补，立即气血 +15、心境 +10、体魄 +2。', useEffects: { health: 15, resolve: 10, physique: 2 } },
       { id: 'sect-armlet', name: '山门玄铁护臂', icon: '铠', kind: 'equipment', price: 900, max: 1, requireRealm: 3, desc: '元婴境可用。常驻战力 +18；瀑下炼体、熬骨淬身的气血消耗各减少 2。也可在炼器堂以贡献兑换。', powerBonus: 18, actions: { train: { health: 2 }, 'body-temper': { health: 2 } } },
       { id: 'star-map', name: '周天星图', icon: '图', kind: 'equipment', price: 680, max: 1, requireRealm: 2, auctionOnly: true, desc: '拍卖场珍藏，金丹境可用。参悟经典额外修为 +10、悟性 +1；星位会随修行记录逐渐清晰。', actions: { comprehend: { cultivation: 10, insight: 1 } } },
@@ -140,9 +167,9 @@
       { id: 'phoenix-elixir', name: '涅槃仙露', icon: '露', kind: 'consumable', price: 4500, max: 3, requireRealm: 7, auctionOnly: true, desc: '仙界拍品，真仙境可用。立即气血 +60、心境 +40、修为 +180，并解除经脉受伤。', useEffects: { health: 60, resolve: 40, cultivation: 180 }, clearCondition: 'injured' }
     ],
     buffs: [
-      { id: 'ward', name: '符光护身', desc: '护身符仍有灵光，战力 +15。', duration: 3, powerBonus: 15 },
-      { id: 'insight', name: '明心定神', desc: '破境成功率提高 15 个百分点。', duration: 3, breakthroughBonus: 0.15 },
-      { id: 'clear-mind', name: '灵台清明', desc: '参悟经典额外悟性 +3；静室修炼额外修为 +4。', duration: 3, actions: { comprehend: { insight: 3 }, meditate: { cultivation: 4 } } }
+      { id: 'ward', name: '符光护身', desc: '战力 +15，最多持续 36 个月，随实际经过的时间衰减。', duration: 36, powerBonus: 15 },
+      { id: 'insight', name: '明心定神', desc: '破境成功率提高 15 个百分点，最多持续 36 个月；闭关采用开始时的状态。', duration: 36, breakthroughBonus: 0.15 },
+      { id: 'clear-mind', name: '灵台清明', desc: '参悟经典额外悟性 +3、静室修炼额外修为 +4，最多持续 36 个月；行动采用开始时的状态。', duration: 36, actions: { comprehend: { insight: 3 }, meditate: { cultivation: 4 } } }
     ],
     conditions: [
       { id: 'injured', name: '经脉受伤', desc: '暂时不能山海游历、瀑下炼体、熬骨淬身或引雷淬脉。安排归舍休整，或使用续脉膏即可恢复。', blocks: ['explore', 'train', 'body-temper', 'thunder-temper'] }
@@ -167,20 +194,20 @@
     ],
     facilities: [
       { id: 'pill-hall', name: '炼丹堂', desc: '凭山门贡献支取丹药。药性与坊市相同，每一份都真实收入背囊。', offers: [
-        { id: 'qi-pair', name: '聚气丹两枚', desc: '支取两枚聚气丹，留待修为不足时服用。', cost: 30, gainItems: { 'qi-pill': 2 } },
-        { id: 'healing-pair', name: '续脉膏两份', desc: '为下一次受伤或气血不足预留药物。', cost: 20, gainItems: { 'healing-salve': 2 } },
-        { id: 'breakthrough-dose', name: '明心破境丹', desc: '闭关前服用，提高未来三年破境成功率。', cost: 40, gainItems: { 'breakthrough-pill': 1 } },
-        { id: 'fruit-pair', name: '赤玉灵果两枚', desc: '补充气血与心境，也能温养体魄。', cost: 25, gainItems: { 'spirit-fruit': 2 } }
+        { id: 'qi-pair', name: '聚气丹两枚', desc: '外门弟子即可支取两枚聚气丹，留待修为不足时服用。', cost: 30, requireRank: 'outer', gainItems: { 'qi-pill': 2 } },
+        { id: 'healing-pair', name: '续脉膏两份', desc: '外门弟子即可支取，为受伤或气血不足预留药物。', cost: 20, requireRank: 'outer', gainItems: { 'healing-salve': 2 } },
+        { id: 'breakthrough-dose', name: '明心破境丹', desc: '内门弟子可支取。药效持续 36 个月，闭关开始时有效即可提高本次突破概率。', cost: 40, requireRank: 'inner', gainItems: { 'breakthrough-pill': 1 } },
+        { id: 'fruit-pair', name: '赤玉灵果两枚', desc: '外门弟子即可支取，补充气血与心境，也能温养体魄。', cost: 25, requireRank: 'outer', gainItems: { 'spirit-fruit': 2 } }
       ] },
       { id: 'library', name: '藏经阁', desc: '以贡献换取传法资格。读懂后成为长期收获，不占背囊，也不能重复兑换。', offers: [
-        { id: 'breathing-book', name: '研读吐纳真解', desc: '永久提升静室修炼收益：额外修为 +8。', cost: 100, requireRealm: 1, grantPerk: 'sect-meditation' },
-        { id: 'insight-book', name: '研读经义辨微', desc: '参悟额外悟性 +3，讲经额外修为 +5。', cost: 80, requireRealm: 1, grantPerk: 'sect-insight' },
-        { id: 'immortal-book', name: '研读太清仙经', desc: '真仙境可读。静坐额外修为 +18，破境成功率 +4 个百分点。', cost: 400, requireRealm: 7, grantPerk: 'immortal-sutra' }
+        { id: 'breathing-book', name: '研读吐纳真解', desc: '内门弟子可读，永久提升静室修炼收益：额外修为 +8。', cost: 100, requireRealm: 1, requireRank: 'inner', grantPerk: 'sect-meditation' },
+        { id: 'insight-book', name: '研读经义辨微', desc: '人间宗门及以上的真传弟子可读。参悟额外悟性 +3，讲经额外修为 +5。', cost: 80, requireRealm: 1, requireRank: 'core', requireSectRealm: 1, grantPerk: 'sect-insight' },
+        { id: 'immortal-book', name: '研读太清仙经', desc: '仙界仙宗及以上的仙界长老可读。静坐额外修为 +18，破境成功率 +4 个百分点。', cost: 400, requireRealm: 7, requireRank: 'immortal-elder', requireSectRealm: 7, grantPerk: 'immortal-sutra' }
       ] },
       { id: 'forge-hall', name: '炼器堂', desc: '凭贡献换取护身法器。装备持有即生效，相同装备只可拥有一件。', offers: [
-        { id: 'sect-sword', name: '领用青锋法剑', desc: '战力 +12，并开启通用的练习御剑行动。', cost: 80, requireRealm: 1, gainItems: { sword: 1 } },
-        { id: 'sect-boots', name: '领用踏云履', desc: '游历更省气血，采矿也能更好地锻炼筋骨。', cost: 50, requireRealm: 1, gainItems: { 'cloud-boots': 1 } },
-        { id: 'sect-armor', name: '领用玄铁护臂', desc: '元婴境可用。战力 +18，炼体与淬身气血消耗减少。', cost: 180, requireRealm: 3, gainItems: { 'sect-armlet': 1 } }
+        { id: 'sect-sword', name: '领用青锋法剑', desc: '筑基境内门弟子可领用。战力 +12，并开启通用的练习御剑行动。', cost: 80, requireRealm: 1, requireRank: 'inner', gainItems: { sword: 1 } },
+        { id: 'sect-boots', name: '领用踏云履', desc: '筑基境外门弟子即可领用，游历更省气血，采矿也能更好地锻炼筋骨。', cost: 50, requireRealm: 1, requireRank: 'outer', gainItems: { 'cloud-boots': 1 } },
+        { id: 'sect-armor', name: '领用玄铁护臂', desc: '上宗及以上的执事可领用。战力 +18，炼体与淬身气血消耗减少。', cost: 180, requireRealm: 3, requireRank: 'steward', requireSectRealm: 3, gainItems: { 'sect-armlet': 1 } }
       ] }
     ],
     companions: [

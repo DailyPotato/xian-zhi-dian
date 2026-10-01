@@ -2,699 +2,488 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const D = require('../data.js');
 const E = require('../engine.js');
-
-const alignWorld = s => { s.world.year = s.year; s.world.auction.year = s.year; return s; };
-const fresh = (seed = 42, overrides = {}) => alignWorld(Object.assign(E.create({ name: '试炼修士', root: D.roots[0].id, path: D.paths[0].id, talents: [], seed }), { breakthroughs: overrides.realm || 0 }, overrides));
-const unchangedOnError = (s, operation) => { const before = JSON.stringify(s); assert.throws(operation); assert.equal(JSON.stringify(s), before); };
-const plan = (s, ids) => E.setPlan(s, ids);
-const byId = (catalog, id) => { const value = catalog.find(entry => entry.id === id); assert.ok(value, id); return value; };
-const setPending = (s, event) => { s.phase = 'event'; s.pendingEvent = event.id; return s; };
+const byId = (list, id) => { const result = list.find(x => x.id === id); assert.ok(result, id); return result; };
+const sync = s => { s.year = 1 + Math.floor(s.elapsedMonths / 12); s.age = s.year + 15; s.world.year = s.year; s.world.auction.year = s.year; return s; };
+const fresh = (seed = 42, overrides = {}) => {
+  const s = Object.assign(E.create({ name: '试炼修士', path: overrides.path || 'sword', talents: [], seed }),
+    { root: 'metal', rootGrade: 'legacy', rootElements: ['metal'] }, overrides);
+  if (overrides.root && !overrides.rootElements) s.rootElements = [overrides.root];
+  s.breakthroughs = s.realm;
+  if (s.sect) { s.sectRank ||= 'outer'; s.sectMerit = Math.max(s.sectMerit, s.contribution, byId(D.sectRanks, s.sectRank).requireMerit); s.sectJoinedMonth ??= 0; }
+  return sync(s);
+};
+const unchanged = (s, fn) => { const before = JSON.stringify(s); assert.throws(fn); assert.equal(JSON.stringify(s), before); };
+const pending = (s, e) => { s.phase = 'event'; s.pendingEvent = e.id; return s; };
+const roundtrip = s => assert.deepEqual(E.validate(JSON.parse(JSON.stringify(s))), s);
+const neutral = s => {
+  if (s.phase !== 'event') return;
+  const e = { id: 'test-neutral', title: '清静片刻', choices: [{ text: '继续', result: '心神已定。', effects: {} }] };
+  D.events.push(e); try { pending(s, e); return E.choose(s, 0); } finally { D.events.pop(); }
+};
+const act = (s, id) => { const result = E.performAction(s, id); neutral(s); return result; };
 const resolve = s => {
-  const event = byId(D.events, s.pendingEvent);
-  const available = event.choices.map((choice, index) => ({ choice, index })).filter(({ choice }) => !E.choiceError(s, choice));
-  assert.ok(available.length, `${event.id} has no available choice`);
-  const safe = available.find(({ choice }) => !choice.check && !choice.startStory && !Object.values(choice.effects || {}).some(n => n < 0));
-  return E.choose(s, (safe || available.find(({ choice }) => !choice.check) || available[0]).index);
+  const e = byId(D.events, s.pendingEvent), options = e.choices.map((c, i) => ({ c, i })).filter(x => !E.choiceError(s, x.c));
+  assert.ok(options.length, e.id + ' has no available choice');
+  const noncheck = options.filter(x => !x.c.check && !x.c.startStory);
+  const score = x => (x.c.effects?.health || 0) * 5 + (x.c.effects?.resolve || 0) + (x.c.effects?.stones || 0) / 10;
+  const selected = (noncheck.length ? noncheck : options).sort((a, b) => score(b) - score(a))[0];
+  return E.choose(s, selected.i);
 };
-const neutralYearEnd = s => {
-  const event = { id: 'test-neutral', title: '山中无事', choices: [{ text: '继续修行', result: '安然度过这一年。', effects: {} }] };
-  D.events.push(event);
-  try { setPending(s, event); return E.choose(s, 0); } finally { D.events.pop(); }
+const beginStory = (s, def) => {
+  const e = D.events.find(x => x.choices.some(c => c.startStory === def.id));
+  pending(s, e); E.choose(s, e.choices.findIndex(c => c.startStory === def.id)); return byId(D.events, def.followupEvent);
 };
-const startStory = (s, def) => {
-  const invite = D.events.find(event => event.choices.some(choice => choice.startStory === def.id));
-  assert.ok(invite, `${def.id} invitation`);
-  setPending(s, invite);
-  E.choose(s, invite.choices.findIndex(choice => choice.startStory === def.id));
-  return byId(D.events, def.followupEvent);
-};
-const forPath = (path, root = path.affinityRoots[0], overrides = {}) => alignWorld(Object.assign(E.create({ name: '百道试修', root, path: path.id, talents: [], seed: 123 }), overrides));
-const prepareTechnique = (s, action) => {
-  s.realm = Math.max(s.realm, action.requireRealm || 0); s.breakthroughs = s.realm; s.stones = 10000; s.contribution = 100; s.health = 100; s.resolve = 60;
-  if (action.requireSect) s.sect = D.sects[0].id;
-  if (action.requireItem) s.inventory[action.requireItem] = 1;
-  for (const [id, count] of Object.entries(action.costItems || {})) s.inventory[id] = count * 2;
+const legacy = (source, version = 3) => {
+  const s = E.clone(source); s.version = version;
+  for (const key of ['elapsedMonths', 'rootGrade', 'rootElements', 'sectRank', 'sectMerit', 'sectJoinedMonth', 'lastAction']) delete s[key];
+  s.log.forEach(x => delete x.month);
+  if (version < 3) { delete s.world; delete s.morality; }
+  else { s.world.version = 1; s.world.used = 0; s.world.activityLog = []; }
+  for (const st of Object.values(s.stories)) { delete st.startedMonth; delete st.dueMonth; }
   return s;
 };
 
-test('the starting character and talent draw are deterministic and independent', () => {
-  const a = fresh(123), b = fresh(123);
-  assert.deepEqual(a, b); assert.equal(a.year, 1); assert.equal(a.age, 16); assert.equal(a.realm, 0); assert.equal(a.phase, 'planning');
-  assert.equal(a.version, 3);
-  assert.ok(D.talents.length >= 24); assert.equal(E.drawTalents(9).length, 8); assert.equal(new Set(E.drawTalents(9)).size, 8);
-  assert.deepEqual(E.drawTalents(9), E.drawTalents(9)); assert.notDeepEqual(E.drawTalents(9), E.drawTalents(19));
-  a.inventory.herb = 1; assert.equal(b.inventory.herb, undefined);
-  const copy = E.clone(a); copy.inventory.herb = 2; assert.equal(a.inventory.herb, 1);
+test('birth and talent draws are deterministic, independent and deep copied', () => {
+  const a = E.create({ seed: 123 }), b = E.create({ seed: 123 }); assert.deepEqual(a, b); assert.equal(a.version, 4);
+  assert.equal(a.elapsedMonths, 0); assert.equal(a.age, 16); assert.equal(a.phase, 'planning'); assert.deepEqual(a.plan, []);
+  assert.deepEqual(E.drawRoot(123), { root: a.root, rootGrade: a.rootGrade, rootElements: a.rootElements });
+  assert.deepEqual(E.drawTalents(9), E.drawTalents(9)); assert.equal(new Set(E.drawTalents(9)).size, 8); assert.notDeepEqual(E.drawTalents(9), E.drawTalents(19));
+  a.inventory.herb = 1; assert.equal(b.inventory.herb, undefined); const c = E.clone(a); c.inventory.herb++; assert.equal(a.inventory.herb, 1); roundtrip(b);
 });
 
-test('plans reserve three annual actions and invalid edits never mutate the save', () => {
-  const s = fresh(); unchangedOnError(s, () => E.addPlan(s, 'missing'));
-  plan(s, ['meditate', 'work', 'rest']); assert.equal(s.plan.length, 3);
-  unchangedOnError(s, () => E.addPlan(s, 'rest')); unchangedOnError(s, () => E.setPlan(s, ['rest', 'missing']));
-  unchangedOnError(s, () => E.setPlan(s, ['rest', 'rest', 'rest', 'rest']));
-  unchangedOnError(s, () => E.removePlan(s, -1)); unchangedOnError(s, () => E.removePlan(s, 3));
-  E.removePlan(s, 1); assert.deepEqual(s.plan, ['meditate', 'rest']);
-  unchangedOnError(s, () => E.advance(s)); E.addPlan(s, 'rest'); E.advance(s);
-  assert.equal(s.phase, 'event'); assert.ok(s.pendingEvent); assert.deepEqual(s.plan, []);
-  unchangedOnError(s, () => E.addPlan(s, 'rest')); unchangedOnError(s, () => E.advance(s));
-  unchangedOnError(s, () => E.setPlan(s, []));
-});
-
-test('annual settlement reports actual growth and events advance the calendar once', () => {
-  const s = fresh(), initial = E.clone(s), expected = E.actionPreview(s, 'meditate');
-  plan(s, ['meditate', 'work', 'rest']); const result = E.advance(s);
-  assert.equal(s.cultivation - initial.cultivation, expected.cultivation || 0); assert.ok(s.stones > initial.stones);
-  assert.equal(result.effects.cultivation, s.cultivation - initial.cultivation); assert.equal(s.lastYear.year, 1);
-  assert.equal(s.year, 1); const event = resolve(s); assert.equal(s.year, 2); assert.equal(s.age, 17); assert.equal(s.phase, 'planning');
-  assert.deepEqual(s.lastEvent, event); unchangedOnError(s, () => E.choose(s, 0));
-  assert.ok(s.log.length >= 1); assert.deepEqual(E.validate(JSON.parse(JSON.stringify(s))), s);
-});
-
-test('purchases consume spirit stones, enforce capacities and cannot mutate outside planning', () => {
-  const s = fresh(42, { stones: 10000 }), item = byId(D.items, 'sword'), initial = s.stones;
-  const bought = E.buyItem(s, item.id); assert.equal(s.stones, initial - item.price); assert.equal(s.inventory.sword, 1);
-  assert.equal(bought.effects.stones, -item.price); assert.ok(bought.changes.length);
-  unchangedOnError(s, () => E.buyItem(s, 'sword')); unchangedOnError(s, () => E.useItem(s, 'sword'));
-  unchangedOnError(s, () => E.buyItem(s, 'missing')); unchangedOnError(s, () => E.useItem(s, 'qi-pill'));
-  s.stones = 0; unchangedOnError(s, () => E.buyItem(s, 'qi-pill'));
-  s.stones = 10000; const pill = byId(D.items, 'qi-pill'); s.inventory[pill.id] = pill.max;
-  unchangedOnError(s, () => E.buyItem(s, pill.id));
-  for (const phase of ['event', 'ending']) { s.phase = phase; unchangedOnError(s, () => E.buyItem(s, 'herb')); unchangedOnError(s, () => E.useItem(s, 'qi-pill')); }
-});
-
-test('materials are spent by crafting and sequential gathering can fund later work', () => {
-  const s = fresh(42, { stones: 200 }); unchangedOnError(s, () => E.setPlan(s, ['alchemy', 'rest', 'rest']));
-  plan(s, ['gather', 'alchemy', 'rest']); E.advance(s);
-  assert.equal(s.inventory['qi-pill'], 1); assert.equal(s.inventory.herb || 0, 0);
-  neutralYearEnd(s); const before = s.cultivation; const receipt = E.useItem(s, 'qi-pill');
-  assert.equal(s.cultivation - before, byId(D.items, 'qi-pill').useEffects.cultivation); assert.equal(s.inventory['qi-pill'], undefined);
-  assert.equal(receipt.effects.cultivation, s.cultivation - before);
-  plan(s, ['mine', 'forge', 'rest']); E.advance(s); assert.equal(s.inventory.ward, 1); assert.equal(s.inventory.ore || 0, 0);
-  neutralYearEnd(s); s.inventory.herb = 1; unchangedOnError(s, () => E.useItem(s, 'herb'));
-});
-
-test('planned money and materials cannot be spent twice', () => {
-  const s = fresh(42, { stones: 30 }); s.inventory.herb = 2;
-  plan(s, ['alchemy', 'rest', 'rest']); unchangedOnError(s, () => E.addPlan(s, 'alchemy'));
-  const cheap = D.items.find(item => item.price > 0 && item.price <= 30);
-  if (cheap) unchangedOnError(s, () => E.buyItem(s, cheap.id));
-  unchangedOnError(s, () => E.setPlan(s, ['alchemy', 'alchemy', 'rest']));
-  plan(s, ['work', 'alchemy', 'rest']); E.advance(s); assert.equal(s.inventory['qi-pill'], 1); assert.ok(s.stones >= 0);
-});
-
-test('using an item cannot steal a consumable reserved by an annual activity', () => {
-  const action = { id: 'test-pill-reservation', name: '护持同伴', category: '游历', effects: {}, costItems: { 'qi-pill': 1 } };
-  D.actions.push(action);
-  try {
-    const s = fresh(); s.inventory['qi-pill'] = 1; plan(s, [action.id, 'rest', 'rest']);
-    assert.equal(E.itemStatus(s, 'qi-pill').canUse, false); unchangedOnError(s, () => E.useItem(s, 'qi-pill'));
-    E.advance(s); assert.equal(s.inventory['qi-pill'], undefined);
-  } finally { D.actions.pop(); }
-});
-
-test('equipment improves actual cultivation and combat power after saving and loading', () => {
-  const plain = fresh(77, { stones: 10000 }), equipped = E.clone(plain);
-  E.buyItem(equipped, 'manual'); E.buyItem(equipped, 'sword'); const loaded = E.validate(JSON.parse(JSON.stringify(equipped)));
-  const manual = byId(D.items, 'manual'), sword = byId(D.items, 'sword');
-  assert.equal(E.power(equipped) - E.power(plain), sword.powerBonus);
-  for (const s of [plain, equipped, loaded]) { plan(s, ['meditate', 'rest', 'rest']); E.advance(s); }
-  assert.equal(equipped.cultivation - plain.cultivation, manual.actions.meditate.cultivation); assert.deepEqual(loaded, equipped);
-});
-
-test('temporary protection benefits three complete years including each encounter', () => {
-  const s = fresh(42, { stones: 10000 }), normalPower = E.power(s), ward = byId(D.buffs, 'ward');
-  E.buyItem(s, 'ward'); E.buyItem(s, 'ward'); E.useItem(s, 'ward'); assert.equal(s.buffs.ward, ward.duration);
-  unchangedOnError(s, () => E.useItem(s, 'ward'));
-  for (let year = 0; year < ward.duration; year++) {
-    assert.equal(E.power(s), normalPower + ward.powerBonus);
-    plan(s, ['rest', 'rest', 'rest']); E.advance(s);
-    assert.equal(s.buffs.ward, ward.duration - year); assert.equal(E.power(s), normalPower + ward.powerBonus);
-    assert.deepEqual(E.validate(JSON.parse(JSON.stringify(s))), s); neutralYearEnd(s);
+test('a new life cannot select or reroll roots through character configuration', () => {
+  for (let seed = 0; seed < 25; seed++) {
+    const expected = E.drawRoot(seed), s = E.create({ seed, root: 'yang', rootGrade: 'heavenly', rootElements: ['yang'], path: 'soul', talents: ['family-savings'] });
+    assert.equal(s.root, expected.root); assert.equal(s.rootGrade, expected.rootGrade); assert.deepEqual(s.rootElements, expected.rootElements);
+    E.drawTalents(seed + 99); assert.deepEqual(E.drawRoot(seed), expected);
   }
-  assert.equal(s.buffs.ward, undefined); assert.equal(E.power(s), normalPower); E.useItem(s, 'ward'); assert.equal(s.buffs.ward, ward.duration);
+  assert.throws(() => E.drawRoot(NaN)); assert.throws(() => E.drawRoot(1.2));
 });
 
-test('injury has a real action lock and two distinct recovery methods', () => {
-  for (const recovery of ['rest', 'salve']) {
-    const s = fresh(42, { stones: 10000 }); s.conditions.push('injured');
-    assert.ok(E.actionError(s, 'explore')); assert.ok(E.actionError(s, 'train'));
-    unchangedOnError(s, () => E.setPlan(s, ['explore', 'rest', 'rest']));
-    if (recovery === 'rest') { plan(s, ['rest', 'rest', 'rest']); E.advance(s); neutralYearEnd(s); }
-    else { const item = D.items.find(item => item.clearCondition === 'injured'); assert.ok(item); E.buyItem(s, item.id); E.useItem(s, item.id); assert.equal(s.inventory[item.id], undefined); }
-    assert.ok(!s.conditions.includes('injured')); assert.equal(E.actionError(s, 'train'), '');
+test('random root grades follow their weights and enforce distinct legal elements', () => {
+  const counts = Object.fromEntries(D.rootGrades.map(g => [g.id, 0])), basic = new Set(['metal', 'wood', 'water', 'fire', 'earth']);
+  for (let i = 0; i < 10000; i++) {
+    const r = E.drawRoot(Math.imul(i, 2654435761) >>> 0), g = byId(D.rootGrades, r.rootGrade); counts[g.id]++;
+    assert.equal(r.root, r.rootElements[0]); assert.equal(new Set(r.rootElements).size, r.rootElements.length);
+    assert.ok(r.rootElements.length >= g.minElements && r.rootElements.length <= g.maxElements);
+    assert.ok(r.rootElements.every(id => g.id === 'variant' ? !basic.has(id) : basic.has(id)));
+  }
+  assert.equal(counts.legacy, 0);
+  for (const g of D.rootGrades.filter(x => x.weight)) assert.ok(Math.abs(counts[g.id] / 10000 - g.weight / 100) < .035, g.id + ' weighted distribution');
+});
+
+test('all root elements contribute to affinity and grade changes actual cultivation', () => {
+  const s = fresh(1, { rootGrade: 'dual', rootElements: ['metal', 'water'], path: 'ice', insight: 20, resolve: 50 });
+  assert.equal(E.pathStatus(s).matched, true); assert.ok(E.pathStatus(s).recommendedPaths.includes('ice'));
+  const original = fresh(1, { root: 'metal', path: 'ice', insight: 20, resolve: 50 }); assert.equal(E.pathStatus(original).matched, false);
+  assert.equal(E.actionPreview(s, 'meditate').cultivation, Math.round((E.actionPreview(original, 'meditate').cultivation + 4) * 1.1));
+  assert.ok(Math.abs(E.breakthroughStatus(s).chance - E.breakthroughStatus(original).chance - .06) < 1e-9);
+  for (const g of D.rootGrades) {
+    const r = fresh(1, { rootGrade: g.id, rootElements: g.id === 'variant' ? ['ice'] : ['metal', 'wood', 'water', 'fire', 'earth'].slice(0, g.minElements), root: g.id === 'variant' ? 'ice' : 'metal' });
+    const control = E.clone(r); control.rootGrade = 'legacy'; control.rootElements = [r.root];
+    if (g.id !== 'variant') assert.equal(E.actionPreview(r, 'meditate').cultivation, Math.round(E.actionPreview(control, 'meditate').cultivation * g.cultivationMultiplier));
+    roundtrip(r);
   }
 });
 
-test('sect joining is permanent, requires the realm and preserves a prepared plan', () => {
-  const s = fresh(), sect = D.sects[0]; unchangedOnError(s, () => E.joinSect(s, sect.id));
-  s.realm = sect.requireRealm; s.breakthroughs = s.realm; E.addPlan(s, 'rest'); unchangedOnError(s, () => E.joinSect(s, sect.id));
-  E.removePlan(s, 0); const stones = s.stones; E.joinSect(s, sect.id);
-  assert.equal(s.sect, sect.id); assert.equal(s.stones, stones); assert.equal(E.actionError(s, 'mission'), '');
-  unchangedOnError(s, () => E.joinSect(s, D.sects[1].id));
-  const before = s.contribution; plan(s, ['mission', 'rest', 'rest']); E.advance(s); assert.ok(s.contribution > before);
-  assert.deepEqual(E.validate(JSON.parse(JSON.stringify(s))), s);
+test('single actions spend their advertised months and report actual growth without annual healing', () => {
+  const s = fresh(10, { health: 70, resolve: 70, elapsedMonths: 10 }), preview = E.actionPreview(s, 'meditate'), before = E.clone(s);
+  const receipt = E.performAction(s, 'meditate'); assert.equal(receipt.months, 3); assert.equal(s.elapsedMonths, 13); assert.equal(s.year, 2); assert.equal(s.age, 17);
+  assert.equal(s.cultivation - before.cultivation, preview.cultivation); assert.equal(s.health, 70); assert.equal(s.resolve, 70 + preview.resolve);
+  assert.equal(receipt.effects.cultivation, preview.cultivation); assert.deepEqual(s.lastAction, receipt); assert.deepEqual(s.plan, []);
+  const time = E.timeStatus(s); assert.equal(time.month, 2); assert.equal(time.ageMonths, 1); assert.equal(time.remainingMonths, (100 - 16) * 12 - 13);
+  neutral(s); roundtrip(s); assert.equal(E.formatDuration(25), '2年1个月');
 });
 
-test('lectures spend contribution and stones while respecting each planned action in order', () => {
-  const s = fresh(42, { realm: 1, stones: 0 }); E.joinSect(s, D.sects[0].id);
-  unchangedOnError(s, () => plan(s, ['lecture', 'mission', 'rest']));
-  plan(s, ['mission', 'lecture', 'lecture']); const before = E.clone(s); E.advance(s);
-  assert.equal(s.contribution, E.actionPreview(before, 'mission').contribution - 20); assert.equal(s.stones, E.actionPreview(before, 'mission').stones - 60); assert.equal(s.insight - before.insight, 16);
-  assert.ok(!s.lastYear.notes.some(note => note.includes('未进行')));
-  neutralYearEnd(s); s.contribution = 10; s.stones = 100;
-  unchangedOnError(s, () => plan(s, ['lecture', 'lecture', 'rest']));
-  s.stones = 30; plan(s, ['lecture', 'rest', 'rest']);
-  assert.equal(E.itemStatus(s, 'herb').canBuy, false); unchangedOnError(s, () => E.buyItem(s, 'herb'));
-  E.advance(s); assert.equal(s.contribution, 0); assert.equal(s.stones, 0);
+test('all action durations are explicit and only marked cultivation scales with realm', () => {
+  const factors = [1, 1, 2, 3, 4, 6, 8, 12, 18, 24, 36, 60, 100, 100];
+  for (let realm = 0; realm < 14; realm++) for (const a of D.actions) {
+    assert.ok(a.timeMonths > 0); const s = fresh(1, { realm }); assert.equal(E.actionTime(s, a.id).months, a.timeMonths * (a.realmTime ? factors[realm] : 1));
+  }
+  for (const st of D.stories) assert.equal(byId(D.actions, st.actionId).realmTime, false, 'story deadlines remain achievable at high realm');
 });
 
-test('breakthrough planning rejects missing cultivation and duplicate attempts', () => {
-  const s = fresh(); assert.equal(E.breakthroughStatus(s).ready, false); unchangedOnError(s, () => E.addPlan(s, 'breakthrough'));
-  const threshold = E.breakthroughStatus(s).threshold; s.cultivation = threshold;
-  assert.equal(E.breakthroughStatus(s).ready, true); E.addPlan(s, 'breakthrough');
-  unchangedOnError(s, () => E.addPlan(s, 'breakthrough'));
-  s.plan = []; s.health = 19; unchangedOnError(s, () => E.addPlan(s, 'breakthrough'));
-  s.health = 100; s.resolve = 19; unchangedOnError(s, () => E.addPlan(s, 'breakthrough'));
+test('old plan APIs and invalid immediate actions fail without changing state or random sequence', () => {
+  const s = fresh(); unchanged(s, () => E.addPlan(s, 'rest')); unchanged(s, () => E.setPlan(s, ['rest'])); unchanged(s, () => E.removePlan(s, 0));
+  unchanged(s, () => E.performAction(s, 'missing')); unchanged(s, () => E.advance(s)); unchanged(s, () => E.performAction(s, 'alchemy'));
+  pending(s, D.events.find(e => !e.storyOnly)); unchanged(s, () => E.performAction(s, 'rest'));
+  s.phase = 'ending'; s.pendingEvent = null; unchanged(s, () => E.performAction(s, 'rest'));
 });
 
-test('deterministic breakthroughs include both success and costly failure', () => {
+test('events are optional and resolving them does not consume time or expire buffs again', () => {
+  let yes = 0, no = 0;
+  for (let seed = 1; seed <= 100; seed++) {
+    const s = fresh(Math.imul(seed, 2654435761) >>> 0); s.buffs.ward = 10;
+    const result = E.performAction(s, 'rest'); assert.equal(s.buffs.ward, 9);
+    if (result.eventOccurred) { yes++; const before = s.elapsedMonths; neutral(s); assert.equal(s.elapsedMonths, before); assert.equal(s.buffs.ward, 9); unchanged(s, () => E.choose(s, 0)); }
+    else { no++; assert.equal(s.pendingEvent, null); assert.equal(s.phase, 'planning'); }
+  }
+  assert.ok(yes > 10 && no > 10);
+});
+
+test('shops enforce prices, equipment uniqueness, item capacities and stage restrictions', () => {
+  const s = fresh(1, { stones: 10000 }), before = s.stones, time = s.elapsedMonths;
+  const r = E.buyItem(s, 'sword'); assert.equal(s.stones, before - 420); assert.equal(r.effects.stones, -420); assert.equal(s.elapsedMonths, time);
+  unchanged(s, () => E.buyItem(s, 'sword')); unchanged(s, () => E.useItem(s, 'sword')); unchanged(s, () => E.buyItem(s, 'missing'));
+  unchanged(s, () => E.buyItem(s, 'void-bell')); unchanged(s, () => E.buyItem(s, 'sect-armlet'));
+  s.inventory['qi-pill'] = byId(D.items, 'qi-pill').max; unchanged(s, () => E.buyItem(s, 'qi-pill'));
+  s.stones = 0; unchanged(s, () => E.buyItem(s, 'herb'));
+  for (const phase of ['event', 'ending']) { s.phase = phase; unchanged(s, () => E.buyItem(s, 'herb')); unchanged(s, () => E.useItem(s, 'qi-pill')); }
+});
+
+test('gathering, crafting, consuming and resource shortages form real sequential actions', () => {
+  const s = fresh(1, { stones: 100 }); unchanged(s, () => E.performAction(s, 'alchemy'));
+  act(s, 'gather'); assert.equal(s.inventory.herb, 2); act(s, 'alchemy'); assert.equal(s.inventory['qi-pill'], 1); assert.equal(s.inventory.herb, undefined);
+  assert.equal(s.stones, 70); unchanged(s, () => E.performAction(s, 'alchemy'));
+  const c = s.cultivation, t = s.elapsedMonths; E.useItem(s, 'qi-pill'); assert.equal(s.cultivation, c + 35); assert.equal(s.elapsedMonths, t); assert.equal(s.inventory['qi-pill'], undefined);
+  act(s, 'mine'); act(s, 'forge'); assert.equal(s.inventory.ward, 1); assert.equal(s.inventory.ore, undefined);
+  s.inventory.herb = 1; unchanged(s, () => E.useItem(s, 'herb'));
+  s.inventory.herb = 2; s.stones = 29; unchanged(s, () => E.performAction(s, 'alchemy'));
+});
+
+test('equipment and permanent perks affect growth and remain active across reloads', () => {
+  const plain = fresh(1, { stones: 10000 }), equipped = E.clone(plain); E.buyItem(equipped, 'manual'); E.buyItem(equipped, 'sword');
+  equipped.perks.push('ancient-method'); const loaded = E.validate(E.clone(equipped));
+  assert.equal(E.power(equipped) - E.power(plain), 12);
+  assert.equal(E.actionPreview(equipped, 'meditate').cultivation - E.actionPreview(plain, 'meditate').cultivation, 12);
+  act(equipped, 'meditate'); act(loaded, 'meditate'); assert.deepEqual(loaded, equipped);
+});
+
+test('buffs decay by elapsed months, retain opening benefits and expire exactly once', () => {
+  const s = fresh(1, { realm: 4, stones: 10000 }); E.buyItem(s, 'mountain-tea'); E.useItem(s, 'mountain-tea'); E.buyItem(s, 'mountain-tea');
+  assert.equal(s.buffs['clear-mind'], 36); unchanged(s, () => E.useItem(s, 'mountain-tea'));
+  s.buffs['clear-mind'] = 2; const expected = E.actionPreview(s, 'meditate').cultivation, before = s.cultivation;
+  const result = act(s, 'meditate'); assert.equal(result.months, 12); assert.equal(s.cultivation - before, expected); assert.equal(s.buffs['clear-mind'], undefined);
+  assert.equal(result.changes.filter(x => x.includes('消散')).length, 1); roundtrip(s);
+  E.useItem(s, 'mountain-tea'); assert.equal(s.buffs['clear-mind'], 36);
+  s.buffs.ward = 2; const power = E.power(s); act(s, 'rest'); assert.equal(s.buffs.ward, 1); act(s, 'rest'); assert.equal(s.buffs.ward, undefined); assert.equal(E.power(s), power - 15);
+});
+
+test('injury locks the listed physical activities and rest or salve clears it', () => {
+  for (const path of ['sword', 'body', 'thunder']) for (const recovery of ['rest', 'salve']) {
+    const s = fresh(1, { path, stones: 1000 }); s.conditions = ['injured'];
+    for (const id of ['explore', 'train', ...(path === 'body' ? ['body-temper'] : path === 'thunder' ? ['thunder-temper'] : [])]) unchanged(s, () => E.performAction(s, id));
+    if (recovery === 'rest') act(s, 'rest'); else { E.buyItem(s, 'healing-salve'); E.useItem(s, 'healing-salve'); assert.equal(s.elapsedMonths, 0); }
+    assert.ok(!s.conditions.includes('injured')); assert.equal(E.actionError(s, 'train'), ''); roundtrip(s);
+  }
+});
+
+test('all ten exclusive techniques keep their identity, materials and required path', () => {
+  for (const p of D.paths) {
+    const a = byId(D.actions, p.technique), s = fresh(1, { path: p.id, root: p.affinityRoots[0], stones: 10000, health: 100 });
+    for (const [id, count] of Object.entries(a.costItems || {})) s.inventory[id] = count;
+    const expected = E.actionPreview(s, a.id), before = E.clone(s); act(s, a.id);
+    assert.equal(s.cultivation - before.cultivation, expected.cultivation || 0); assert.equal(s.elapsedMonths, E.actionTime(before, a.id).months);
+    for (const [id, count] of Object.entries(a.gainItems || {})) assert.equal(s.inventory[id], count);
+    for (const id of Object.keys(a.costItems || {})) assert.equal(s.inventory[id], undefined);
+    const other = fresh(1, { path: D.paths.find(x => x.id !== p.id).id, stones: 10000 }); unchanged(other, () => E.performAction(other, a.id)); roundtrip(s);
+  }
+});
+
+test('all legacy element and path combinations reload without replaying starting gifts', () => {
+  for (const root of D.roots) for (const p of D.paths) {
+    const s = fresh(1, { root: root.id, path: p.id, cultivation: 123, stones: 777 }); roundtrip(s);
+    assert.equal(E.pathStatus(s).matched, p.affinityRoots.includes(root.id));
+  }
+  for (const path of ['sword', 'alchemy', 'wander']) {
+    const s = fresh(1, { path }); s.inventory.sword = 1; assert.equal(E.actionError(s, 'sword-study'), ''); act(s, 'sword-study'); roundtrip(s);
+  }
+});
+
+test('sect entry takes a month and transfers only upward while retaining possessions', () => {
+  const s = fresh(1, { realm: 1, stones: 1000 }); const r = E.joinSect(s, 'green-mountain');
+  assert.equal(r.months, 1); assert.equal(s.elapsedMonths, 1); assert.equal(s.sectRank, 'outer'); assert.equal(s.sectJoinedMonth, 1);
+  unchanged(s, () => E.joinSect(s, 'green-mountain')); s.inventory.manual = 1; s.perks.push('ancient-method');
+  act(s, 'mission'); const earned = s.contribution; assert.ok(earned > 0); assert.equal(s.sectMerit, earned);
+  const before = s.elapsedMonths; E.joinSect(s, 'cloud-sword'); assert.equal(s.elapsedMonths, before + 1); assert.equal(s.contribution, 0); assert.equal(s.sectMerit, 0); assert.equal(s.sectRank, 'outer');
+  assert.equal(s.inventory.manual, 1); assert.ok(s.perks.includes('ancient-method'));
+  unchanged(s, () => E.joinSect(s, 'red-valley')); unchanged(s, () => E.joinSect(s, 'green-mountain')); unchanged(s, () => E.joinSect(s, 'star-observatory')); roundtrip(s);
+});
+
+test('promotion uses cumulative merit rather than remaining contribution and takes one month', () => {
+  const s = fresh(1, { realm: 2, sect: 'cloud-sword', contribution: 0, sectMerit: 59 }); assert.equal(E.sectStatus(s).canPromote, false); unchanged(s, () => E.promoteSect(s));
+  s.sectMerit = 60; const t = s.elapsedMonths; E.promoteSect(s); assert.equal(s.sectRank, 'inner'); assert.equal(s.elapsedMonths, t + 1); assert.equal(s.contribution, 0);
+  assert.equal(E.actionError(s, 'sect-patrol'), ''); assert.ok(E.actionError(s, 'teach-disciples'));
+  const outer = E.clone(s); outer.sectRank = 'outer'; assert.equal(E.actionPreview(s, 'mission').contribution - E.actionPreview(outer, 'mission').contribution, 5);
+  s.sectMerit = 160; E.promoteSect(s); assert.equal(s.sectRank, 'core'); assert.equal(E.actionPreview(s, 'mission').contribution - E.actionPreview(outer, 'mission').contribution, 10);
+  roundtrip(s);
+});
+
+test('all ranks advance in order, require their realm and reject another promotion at the top', () => {
+  const s = fresh(1, { realm: 11, sect: 'golden-palace', sectMerit: 7000, contribution: 50 }), start = s.elapsedMonths;
+  for (const rank of D.sectRanks.slice(1)) { assert.equal(E.sectStatus(s).nextRank.id, rank.id); E.promoteSect(s); assert.equal(s.sectRank, rank.id); assert.equal(s.contribution, 50); roundtrip(s); }
+  assert.equal(s.elapsedMonths, start + 7); assert.equal(s.sectRank, 'lord'); unchanged(s, () => E.promoteSect(s));
+  const low = fresh(1, { sect: 'green-mountain', sectMerit: 9000 }); unchanged(low, () => E.promoteSect(low));
+  const bad = fresh(1, { realm: 1, sect: 'green-mountain', sectMerit: 100, morality: -60 }); unchanged(bad, () => E.promoteSect(bad));
+});
+
+test('contribution gains from actions and encounters build merit but spending never erases it', () => {
+  const s = fresh(1, { realm: 1, sect: 'cloud-sword', stones: 0 }); act(s, 'mission');
+  const earned = s.contribution; assert.equal(s.sectMerit, earned); act(s, 'lecture'); assert.equal(s.contribution, earned - 10); assert.equal(s.sectMerit, earned);
+  const e = { id: 'test-merit-gift', title: '山门嘉奖', choices: [{ text: '接受', result: '功绩记入名册。', effects: { contribution: 23 } }] };
+  D.events.push(e); try { pending(s, e); E.choose(s, 0); } finally { D.events.pop(); }
+  assert.equal(s.sectMerit, earned + 23); const merit = s.sectMerit; E.exchangeFacility(s, 'pill-hall', 'healing-pair'); assert.equal(s.sectMerit, merit); roundtrip(s);
+});
+
+test('sect admission and promotion cannot consume the last available month', () => {
+  const cap = (D.realms[0].lifespan - 16) * 12;
+  const near = fresh(1, { elapsedMonths: cap - 1 }); unchanged(near, () => E.joinSect(near, 'green-mountain'));
+  const elder = fresh(1, { realm: 1, sect: 'cloud-sword', sectMerit: 100, elapsedMonths: (200 - 16) * 12 - 1 }); unchanged(elder, () => E.promoteSect(elder));
+});
+
+test('breakthrough requires enough cultivation, health and resolve before any time passes', () => {
+  const s = fresh(); unchanged(s, () => E.performAction(s, 'breakthrough')); s.cultivation = D.realms[0].threshold;
+  s.health = 19; unchanged(s, () => E.performAction(s, 'breakthrough')); s.health = 100; s.resolve = 19; unchanged(s, () => E.performAction(s, 'breakthrough'));
+  s.resolve = 100; assert.equal(E.actionError(s, 'breakthrough'), '');
+});
+
+test('both successful and failed breakthroughs consume time exactly once and preserve seeded outcomes', () => {
   let success = false, failure = false;
-  for (let seed = 1; seed <= 100 && !(success && failure); seed++) {
-    const s = fresh(Math.imul(seed, 2654435761) >>> 0, { insight: 0, resolve: 50, health: 70 }), threshold = E.breakthroughStatus(s).threshold;
-    s.cultivation = threshold; const copy = E.clone(s); plan(s, ['rest', 'rest', 'breakthrough']); plan(copy, ['rest', 'rest', 'breakthrough']);
-    E.advance(s); E.advance(copy); assert.deepEqual(s, copy);
-    if (s.realm === 1) { success = true; assert.equal(s.cultivation, 0); assert.equal(s.breakthroughs, 1); assert.equal(s.failures, 0); assert.equal(E.lifespanStatus(s).limit, 200); }
-    else { failure = true; assert.equal(s.cultivation, threshold * 0.8); assert.equal(s.failures, 1); assert.equal(s.breakthroughs, 0); assert.equal(E.lifespanStatus(s).limit, 100); }
-    assert.ok(s.lastYear.notes.length, 'breakthrough outcome must be visible');
-  }
-  assert.ok(success && failure, 'seed range must contain both possible outcomes');
-});
-
-test('breakthrough aids affect probability and stay active after an unsuccessful attempt', () => {
-  const s = fresh(1, { stones: 10000, insight: 0, resolve: 50 }), before = E.breakthroughStatus(s).chance;
-  E.buyItem(s, 'breakthrough-pill'); E.useItem(s, 'breakthrough-pill');
-  assert.ok(E.breakthroughStatus(s).chance > before); assert.ok(E.breakthroughStatus(s).chance <= .95);
-  let failed = false;
-  for (let seed = 1; seed <= 100 && !failed; seed++) {
-    const t = E.clone(s); t.seed = Math.imul(seed, 2654435761) >>> 0; t.cultivation = E.breakthroughStatus(t).threshold; plan(t, ['rest', 'rest', 'breakthrough']); E.advance(t);
-    if (t.realm === 0) { failed = true; assert.equal(t.buffs.insight, byId(D.buffs, 'insight').duration); neutralYearEnd(t); assert.equal(t.buffs.insight, byId(D.buffs, 'insight').duration - 1); }
-  }
-  assert.ok(failed);
-});
-
-test('becoming the immortal emperor completes life immediately without another encounter', () => {
-  let ascended = false;
-  for (let seed = 1; seed <= 100 && !ascended; seed++) {
-    const from = D.realms.length - 2, s = fresh(seed, { realm: from, cultivation: D.realms[from].threshold, insight: 100, resolve: 100, health: 100 });
-    plan(s, ['breakthrough', 'rest', 'rest']); E.advance(s);
-    if (s.realm === D.realms.length - 1) { ascended = true; assert.equal(s.phase, 'ending'); assert.equal(s.pendingEvent, null); assert.equal(s.ending.id, 'emperor'); assert.deepEqual(E.validate(JSON.parse(JSON.stringify(s))), s); unchangedOnError(s, () => E.advance(s)); }
-  }
-  assert.ok(ascended);
-});
-
-test('fourteen realms extend lifespan through ascension to the immortal emperor', () => {
-  const limits = [100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000, 1000000, null]; assert.deepEqual(D.realms.map(realm => realm.lifespan), limits);
-  for (let realm = 0; realm < limits.length; realm++) {
-    const s = fresh(42, { realm }), status = E.lifespanStatus(s); assert.equal(status.limit, limits[realm]);
-    assert.equal(status.immortal, realm === limits.length - 1); assert.equal(status.remaining, realm === limits.length - 1 ? null : limits[realm] - s.age);
-    assert.equal(status.nextLimit, limits[realm + 1] ?? null); assert.equal(status.gain, realm < limits.length - 2 ? limits[realm + 1] - limits[realm] : null);
-  }
-});
-
-test('every finite-lifespan realm expires at its own cap including the immortal realms', () => {
-  for (let realm = 0; realm < D.realms.length - 1; realm++) {
-    const limit = D.realms[realm].lifespan, s = fresh(42, { realm, age: limit - 1, year: limit - 16 });
-    assert.equal(E.lifespanStatus(s).remaining, 1); plan(s, ['rest', 'rest', 'rest']); E.advance(s);
-    assert.equal(s.phase, 'event'); assert.equal(s.age, limit - 1); assert.deepEqual(E.validate(JSON.parse(JSON.stringify(s))), s);
-    neutralYearEnd(s); assert.equal(s.phase, 'ending'); assert.equal(s.age, limit); assert.equal(s.year, limit - 15);
-    assert.equal(E.lifespanStatus(s).remaining, 0); assert.equal(s.ending.reason, 'lifespan'); assert.ok(s.health > 0);
-    assert.deepEqual(E.validate(JSON.parse(JSON.stringify(s))), s); unchangedOnError(s, () => E.addPlan(s, 'rest'));
-  }
-});
-
-test('a successful breakthrough in the last year extends life while a failed attempt does not', () => {
-  let success = false, failure = false;
-  for (let seed = 1; seed <= 100 && !(success && failure); seed++) {
-    const s = fresh(Math.imul(seed, 2654435761) >>> 0, { age: 99, year: 84, cultivation: D.realms[0].threshold, insight: 0, resolve: 50, health: 80 });
-    plan(s, ['breakthrough', 'rest', 'rest']); E.advance(s); assert.equal(s.age, 99); assert.equal(s.phase, 'event'); neutralYearEnd(s);
-    assert.equal(s.age, 100); assert.equal(s.year, 85);
-    if (s.realm === 1) { success = true; assert.equal(s.phase, 'planning'); assert.equal(E.lifespanStatus(s).limit, 200); assert.equal(s.ending, null); }
-    else { failure = true; assert.equal(s.phase, 'ending'); assert.equal(E.lifespanStatus(s).limit, 100); assert.equal(s.ending.reason, 'lifespan'); }
-    assert.deepEqual(E.validate(JSON.parse(JSON.stringify(s))), s);
+  for (let i = 1; i <= 100 && !(success && failure); i++) {
+    const s = fresh(Math.imul(i, 2654435761) >>> 0, { cultivation: 90, health: 70, resolve: 50, insight: 0 }), other = E.clone(s);
+    const r = E.performAction(s, 'breakthrough'); E.performAction(other, 'breakthrough'); assert.deepEqual(s, other); assert.equal(s.elapsedMonths, 6); assert.equal(r.months, 6);
+    if (s.realm === 1) { success = true; assert.equal(s.cultivation, 0); assert.equal(s.health, 85); assert.equal(s.breakthroughs, 1); assert.equal(E.lifespanStatus(s).limit, 200); }
+    else { failure = true; assert.equal(s.cultivation, 72); assert.equal(s.health, 60); assert.equal(s.resolve, 42); assert.equal(s.failures, 1); }
+    assert.ok(r.changes.length); neutral(s); roundtrip(s);
   }
   assert.ok(success && failure);
 });
 
-test('fatal encounter damage ends life without adding another year of age', () => {
-  const event = { id: 'test-fatal-encounter', title: '命灯熄灭', choices: [{ text: '撑至最后', result: '伤势耗尽了气血。', effects: { health: -100 } }] };
-  D.events.push(event);
+test('a breakthrough aid is captured at departure even when it expires during a long retreat', () => {
+  const s = fresh(1, { realm: 7, cultivation: D.realms[7].threshold, health: 100, resolve: 50, insight: 0, stones: 10000 });
+  E.buyItem(s, 'breakthrough-pill'); E.useItem(s, 'breakthrough-pill'); const boosted = E.breakthroughStatus(s).chance;
+  const noBuff = E.clone(s); delete noBuff.buffs.insight; assert.ok(boosted > E.breakthroughStatus(noBuff).chance);
+  const duration = E.actionTime(s, 'breakthrough').months; assert.ok(duration > 36);
+  const expectedSuccess = ((Math.imul(s.seed, 1664525) + 1013904223) >>> 0) / 4294967296 < boosted;
+  E.performAction(s, 'breakthrough'); assert.equal(s.realm, expectedSuccess ? 8 : 7); assert.equal(s.buffs.insight, undefined); assert.equal(s.elapsedMonths, duration);
+});
+
+test('every finite realm enforces exact month boundaries and permits only an explicit final wait', () => {
+  for (let realm = 0; realm < 13; realm++) {
+    const cap = (D.realms[realm].lifespan - 16) * 12, s = fresh(1, { realm, elapsedMonths: cap - 1 });
+    assert.equal(E.lifespanStatus(s).remainingMonths, 1); unchanged(s, () => E.performAction(s, 'rest'));
+    E.waitToEnd(s); assert.equal(s.elapsedMonths, cap); assert.equal(s.age, D.realms[realm].lifespan); assert.equal(s.phase, 'ending'); assert.equal(s.ending.reason, 'lifespan'); roundtrip(s);
+  }
+  const young = fresh();
+  unchanged(young, () => E.waitToEnd(young));
+});
+
+test('late-life breakthrough rejects equal duration atomically and succeeds with one spare month', () => {
+  const cap = (100 - 16) * 12, blocked = fresh(1, { cultivation: 90, elapsedMonths: cap - 6 }); unchanged(blocked, () => E.performAction(blocked, 'breakthrough'));
+  let found = false;
+  for (let seed = 1; seed < 100 && !found; seed++) {
+    const s = fresh(seed, { cultivation: 90, health: 100, resolve: 100, insight: 100, elapsedMonths: cap - 7 }); E.performAction(s, 'breakthrough');
+    if (s.realm === 1) { found = true; assert.equal(s.elapsedMonths, cap - 1); assert.equal(s.age, 99); assert.equal(E.lifespanStatus(s).remainingMonths, 1201); neutral(s); roundtrip(s); }
+  }
+  assert.ok(found);
+});
+
+test('all fourteen realms extend lifespan and immortal ascension is not an ending', () => {
+  assert.deepEqual(D.realms.map(x => x.lifespan), [100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000, 1000000, null]);
+  for (const realm of [4, 5, 6, 7, 11, 12]) {
+    const s = fresh(1, { realm, cultivation: D.realms[realm].threshold, health: 100, resolve: 100, insight: 100 }); s.inventory.manual = 1;
+    E.performAction(s, 'breakthrough'); assert.equal(s.realm, realm + 1); assert.equal(s.inventory.manual, 1);
+    if (realm === 12) { assert.equal(s.phase, 'ending'); assert.equal(s.pendingEvent, null); assert.equal(s.ending.id, 'emperor'); }
+    else { assert.notEqual(s.phase, 'ending'); neutral(s); assert.equal(s.ending, null); }
+    roundtrip(s);
+  }
+});
+
+test('fatal action or event damage ends immediately without free annual recovery or extra event time', () => {
+  const s = fresh(1, { health: 1 }); const result = E.performAction(s, 'train'); assert.equal(s.phase, 'ending'); assert.equal(s.health, 0); assert.equal(s.elapsedMonths, result.months); assert.equal(s.pendingEvent, null); roundtrip(s);
+  const e = { id: 'test-fatal', title: '命灯暗去', choices: [{ text: '承受', result: '气血耗尽。', effects: { health: -100 } }] };
+  D.events.push(e); try { const t = fresh(1, { elapsedMonths: 7 }); pending(t, e); E.choose(t, 0); assert.equal(t.elapsedMonths, 7); assert.equal(t.phase, 'ending'); roundtrip(t); } finally { D.events.pop(); }
+});
+
+test('stories use precise month deadlines, progress through dedicated actions and pay only once', () => {
+  for (const def of D.stories) {
+    const s = fresh(1, { realm: 2, elapsedMonths: 5, stones: 10000, health: 100 }), event = beginStory(s, def), st = s.stories[def.id];
+    assert.equal(st.startedMonth, 5); assert.equal(st.dueMonth, 5 + def.duration * 12); assert.equal(s.elapsedMonths, 5);
+    for (let i = 1; i <= def.target; i++) { E.performAction(s, def.actionId); assert.equal(s.stories[def.id].progress, i); if (i < def.target) neutral(s); }
+    assert.equal(s.pendingEvent, event.id); const index = event.choices.findIndex(c => c.resolveStory?.outcome === 'completed'); const before = s.elapsedMonths;
+    E.choose(s, index); assert.equal(s.stories[def.id].status, 'completed'); assert.equal(s.elapsedMonths, before); assert.ok(s.perks.includes(event.choices[index].grantPerk)); roundtrip(s);
+    pending(s, event); unchanged(s, () => E.choose(s, index));
+  }
+});
+
+test('owning a manual never blocks completion of the ancient formation story', () => {
+  const def = byId(D.stories, 'secret'), s = fresh(1, { realm: 3 }); s.inventory.manual = 1; const e = beginStory(s, def);
+  for (let i = 0; i < def.target; i++) { E.performAction(s, def.actionId); if (i < def.target - 1) neutral(s); }
+  E.choose(s, e.choices.findIndex(c => c.resolveStory?.outcome === 'completed')); assert.equal(s.inventory.manual, 1); assert.ok(s.perks.includes('ancient-method')); roundtrip(s);
+});
+
+test('work that cannot finish by a story deadline is rejected and expiry still has a free ending', () => {
+  for (const def of D.stories) {
+    const s = fresh(1, { realm: 2 }), e = beginStory(s, def); s.elapsedMonths = s.stories[def.id].dueMonth - 1; sync(s);
+    if (E.actionTime(s, def.actionId).months > 1) unchanged(s, () => E.performAction(s, def.actionId));
+    E.performAction(s, 'rest'); assert.equal(s.pendingEvent, e.id); const complete = e.choices.find(c => c.resolveStory?.outcome === 'completed'); assert.ok(E.choiceError(s, complete));
+    E.choose(s, e.choices.findIndex(c => c.resolveStory?.outcome === 'abandoned')); assert.equal(s.stories[def.id].status, 'abandoned'); assert.ok(E.actionError(s, def.actionId)); roundtrip(s);
+  }
+});
+
+test('multiple ready stories settle earliest deadlines first and survive old year sixty', () => {
+  const a = byId(D.stories, 'escort'), b = byId(D.stories, 'beast'), s = fresh(1, { realm: 1, elapsedMonths: 719 });
+  beginStory(s, a); s.elapsedMonths += 5; sync(s); beginStory(s, b); s.stories[a.id].progress = a.target; s.stories[b.id].progress = b.target;
+  E.performAction(s, 'rest'); assert.equal(s.pendingEvent, a.followupEvent); let e = byId(D.events, s.pendingEvent); E.choose(s, e.choices.findIndex(c => c.resolveStory?.outcome === 'completed'));
+  E.performAction(s, 'rest'); assert.equal(s.pendingEvent, b.followupEvent); e = byId(D.events, s.pendingEvent); E.choose(s, e.choices.findIndex(c => c.resolveStory?.outcome === 'completed'));
+  assert.ok(s.year > 60); roundtrip(s);
+});
+
+test('story invitations require enough lifetime and existing deadlines do not expand with realm', () => {
+  const def = byId(D.stories, 'escort'), invite = D.events.find(e => e.choices.some(c => c.startStory === def.id)), s = fresh(1, { elapsedMonths: (100 - 16) * 12 - def.duration * 12 });
+  pending(s, invite); unchanged(s, () => E.choose(s, invite.choices.findIndex(c => c.startStory === def.id)));
+  s.realm = 1; s.breakthroughs = 1; E.choose(s, invite.choices.findIndex(c => c.startStory === def.id)); const due = s.stories[def.id].dueMonth;
+  s.realm = 2; s.breakthroughs = 2; assert.equal(s.stories[def.id].dueMonth, due); roundtrip(s);
+});
+
+test('all encounters including negative events have a resource-free usable fallback', () => {
+  for (const e of D.events) {
+    const realm = Math.max(e.minRealm || 0, e.requireSect ? 1 : 0), s = fresh(1, { realm, path: e.requirePath || 'sword', elapsedMonths: (Math.max(2, e.minYear || 1) - 1) * 12, stones: 0, contribution: 0, health: 100, resolve: 100, morality: e.maxMorality ?? e.minMorality ?? 0, ...(e.requireSect ? { sect: 'cloud-sword' } : {}) });
+    if (e.storyOnly) { const d = byId(D.stories, e.storyId); s.stories[d.id] = { status: 'active', progress: 0, startedYear: s.year, dueYear: s.year + d.duration, startedMonth: s.elapsedMonths, dueMonth: s.elapsedMonths + d.duration * 12, resolvedYear: null, ending: '' }; }
+    pending(s, e); const index = e.choices.findIndex(c => !c.check && !c.require && !c.requireStoryComplete && !c.costItems && !c.gainItems && !c.startStory && !(c.effects?.stones < 0) && !(c.effects?.contribution < 0));
+    assert.ok(index >= 0, e.id); assert.equal(E.choiceError(s, e.choices[index]), '', e.id); const time = s.elapsedMonths; E.choose(s, index); assert.equal(s.elapsedMonths, time); roundtrip(s);
+  }
+});
+
+test('event gates, once-only choices, root identities and morality alter the actual pool', () => {
+  const s = fresh(1, { elapsedMonths: 12 }), e = byId(D.events, 'path-sword-echo'); assert.ok(E.eventWeight(s, e) > 0); s.seen.push(e.id); assert.equal(E.eventWeight(s, e), 0);
+  s.seen = []; s.path = 'alchemy'; assert.equal(E.eventWeight(s, e), 0);
+  for (const sectEvent of D.events.filter(x => x.requireSect)) assert.equal(E.eventWeight(s, sectEvent), 0);
+  const wickedEvent = D.events.find(x => x.maxMorality === -60); s.morality = 70; assert.equal(E.eventWeight(s, wickedEvent), 0); s.morality = -80; assert.ok(E.eventWeight(s, wickedEvent) > 0);
+  const template = { id: 'test-root-gate', title: '水灵契机', requireRoot: 'water', choices: [{ text: '领悟', result: '水意入心。' }] };
+  const action = { id: 'test-root-action', name: '试水', category: '修行', timeMonths: 1, realmTime: false, requireRoot: 'water', effects: {} };
+  D.events.push(template); D.actions.push(action);
   try {
-    const s = fresh(42, { age: 99, year: 84, health: 1 }); setPending(s, event); E.choose(s, 0);
-    assert.equal(s.phase, 'ending'); assert.equal(s.age, 99); assert.equal(s.year, 84); assert.equal(s.ending.reason, 'fallen');
-    assert.deepEqual(E.validate(JSON.parse(JSON.stringify(s))), s);
+    const one = fresh(); assert.equal(E.eventWeight(one, template), 0); unchanged(one, () => E.performAction(one, action.id)); pending(one, template); unchanged(one, () => E.choose(one, 0)); assert.throws(() => E.validate(one));
+    const two = fresh(1, { rootGrade: 'dual', rootElements: ['metal', 'water'] }); assert.ok(E.eventWeight(two, template) > 0); act(two, action.id); pending(two, template); E.choose(two, 0); roundtrip(two);
+  } finally { D.events.pop(); D.actions.pop(); }
+});
+
+test('check probabilities use pre-choice stats and rejected rewards do not advance randomness', () => {
+  const e = { id: 'test-precheck', title: '悟前悟后', choices: [{ text: '试一试', result: '开始', effects: { insight: 90 }, check: { stat: 'insight', difficulty: 80, success: { result: '成功', gainItems: { manual: 1 } }, failure: { result: '未成' } } }, { text: '稍后', result: '先休息。' }] };
+  D.events.push(e);
+  try {
+    const s = fresh(1, { insight: 10 }); pending(s, e); const chance = E.checkChance(s, e.choices[0].check); E.choose(s, 0); assert.equal(s.lastEvent.chance, chance); assert.equal(chance, .1); assert.equal(s.insight, 100);
+    const full = fresh(); full.inventory.manual = 1; pending(full, e); assert.ok(E.choiceError(full, e.choices[0])); unchanged(full, () => E.choose(full, 0)); E.choose(full, 1); assert.equal(full.elapsedMonths, 0);
   } finally { D.events.pop(); }
 });
 
-test('all three stories unlock work, visibly progress and reward exactly once', () => {
-  assert.equal(D.stories.length, 3);
-  for (const def of D.stories) {
-    const s = fresh(42, { stones: 10000, realm: 2 }), start = s.year, followup = startStory(s, def);
-    assert.equal(s.stories[def.id].startedYear, start); assert.equal(s.stories[def.id].dueYear, start + def.duration);
-    assert.equal(E.actionError(s, def.actionId), ''); const completeIndex = followup.choices.findIndex(choice => choice.resolveStory?.outcome === 'completed');
-    assert.ok(completeIndex >= 0); assert.ok(E.choiceError(s, followup.choices[completeIndex]));
-    const actions = Array(def.target).fill(def.actionId); while (actions.length < 3) actions.push('rest');
-    plan(s, actions); E.advance(s); assert.equal(s.stories[def.id].progress, def.target); assert.equal(s.pendingEvent, followup.id);
-    assert.equal(E.storyStatus(s, def.id).ready, true); assert.ok(s.lastYear.notes.length);
-    const result = E.choose(s, completeIndex); assert.equal(s.stories[def.id].status, 'completed'); assert.ok(result.changes.length);
-    assert.ok(s.stories[def.id].ending); assert.ok(!E.eventPool(s).some(event => event.id === followup.id));
-    assert.ok(E.choiceError(s, followup.choices[completeIndex])); unchangedOnError(s, () => E.choose(s, completeIndex));
-    assert.deepEqual(E.validate(JSON.parse(JSON.stringify(s))), s);
+test('morality changes real prices and charity restores standing while consuming its month', () => {
+  const s = fresh(1, { morality: -60, stones: 1000 }); assert.equal(E.itemStatus(s, 'manual').price, Math.ceil(280 * 1.15)); unchanged(s, () => E.joinSect(s, 'green-mountain'));
+  act(s, 'charity'); assert.equal(s.morality, -52); assert.equal(s.stones, 940); assert.equal(s.elapsedMonths, 1); E.joinSect(s, 'green-mountain');
+  s.morality = 20; assert.equal(E.itemStatus(s, 'manual').price, Math.ceil(280 * .95)); s.morality = 99; act(s, 'charity'); assert.equal(s.morality, 100); roundtrip(s);
+});
+
+test('base cultivation and income scale with realm before flat additions and grade multipliers', () => {
+  const low = fresh(1, { realm: 0 }), high = fresh(1, { realm: 7 });
+  assert.equal(E.actionPreview(high, 'meditate').cultivation - E.actionPreview(low, 'meditate').cultivation, Math.round(20 * 3.8) - 20);
+  assert.equal(E.actionPreview(high, 'work').stones, 360);
+  assert.equal(E.actionPreview(high, 'mission').contribution, 90);
+  high.rootGrade = 'heavenly'; assert.equal(E.actionPreview(high, 'meditate').cultivation, Math.round((Math.round(20 * 3.8) + 4) * 1.4));
+});
+
+test('version-three saves migrate roots, months, buffs and unexecuted plans without charging resources', () => {
+  const current = fresh(1, { realm: 2, elapsedMonths: 36, sect: 'cloud-sword', contribution: 93, stones: 777, cultivation: 222, root: 'water' });
+  const old = legacy(current); old.plan = ['meditate', 'work', 'rest']; old.buffs = { ward: 2, insight: 1 }; const original = JSON.stringify(old), migrated = E.validate(old);
+  assert.equal(JSON.stringify(old), original); assert.equal(migrated.version, 4); assert.equal(migrated.elapsedMonths, 36); assert.equal(migrated.rootGrade, 'legacy'); assert.deepEqual(migrated.rootElements, ['water']);
+  assert.deepEqual(migrated.plan, []); assert.deepEqual(migrated.buffs, { ward: 24, insight: 12 }); assert.equal(migrated.stones, 777); assert.equal(migrated.cultivation, 222);
+  assert.equal(migrated.sectRank, 'outer'); assert.equal(migrated.sectMerit, 93); assert.equal(migrated.world.version, 2); roundtrip(migrated);
+});
+
+test('migration retains pending old encounters and choices do not consume another year', () => {
+  const current = fresh(1, { elapsedMonths: 120 }), event = byId(D.events, 'quiet-snow'); pending(current, event); const old = legacy(current), migrated = E.validate(old);
+  assert.equal(migrated.pendingEvent, event.id); assert.equal(migrated.phase, 'event'); E.choose(migrated, 0); assert.equal(migrated.elapsedMonths, 120); assert.equal(migrated.year, 11); roundtrip(migrated);
+});
+
+test('old escort deadlines preserve the entire final calendar year after migration', () => {
+  const s = fresh(1, { realm: 1, elapsedMonths: 84 }); s.stories.escort = { status: 'active', progress: 1, startedYear: 5, dueYear: 8, startedMonth: 48, dueMonth: 84, resolvedYear: null, ending: '' };
+  const old = legacy(s), migrated = E.validate(old); assert.equal(migrated.stories.escort.dueMonth, 96); assert.equal(migrated.stories.escort.legacyDeadline, true);
+  assert.equal(E.actionError(migrated, 'escort-work'), ''); E.performAction(migrated, 'escort-work'); assert.equal(migrated.pendingEvent, 'escort-finish');
+  const e = byId(D.events, 'escort-finish'); E.choose(migrated, e.choices.findIndex(c => c.resolveStory?.outcome === 'completed')); assert.equal(migrated.stories.escort.status, 'completed'); roundtrip(migrated);
+});
+
+test('version-one sixty-year endings resume once, while actual old deaths remain finished', () => {
+  const current = fresh(1, { realm: 1, elapsedMonths: 708, health: 80, phase: 'ending' }); current.ending = { id: 'elder', title: '旧卷', desc: '旧结局' }; current.inventory.manual = 1;
+  const resumed = E.validate(legacy(current, 1)); assert.equal(resumed.age, 76); assert.equal(resumed.elapsedMonths, 720); assert.equal(resumed.phase, 'planning'); assert.equal(resumed.inventory.manual, 1); roundtrip(resumed);
+  for (const version of [1, 2, 3]) {
+    const dead = fresh(1, { realm: 2, elapsedMonths: 60, health: 0, phase: 'ending' }); const loaded = E.validate(legacy(dead, version)); assert.equal(loaded.phase, 'ending'); assert.equal(loaded.ending.reason, 'fallen'); assert.equal(loaded.elapsedMonths, 60); roundtrip(loaded);
   }
 });
 
-test('the ancient formation can be completed even when its cultivator already owns a manual', () => {
-  const s = fresh(42, { realm: 1, stones: 10000 }), def = byId(D.stories, 'secret'); E.buyItem(s, 'manual');
-  const followup = startStory(s, def); plan(s, Array(def.target).fill(def.actionId)); E.advance(s);
-  assert.equal(s.pendingEvent, followup.id); const index = followup.choices.findIndex(choice => choice.resolveStory?.outcome === 'completed');
-  assert.equal(E.choiceError(s, followup.choices[index]), ''); const cultivation = s.cultivation; E.choose(s, index);
-  assert.equal(s.inventory.manual, 1); assert.equal(s.stories.secret.status, 'completed'); assert.ok(s.perks.includes('ancient-method'));
-  assert.equal(s.cultivation - cultivation, 45); assert.deepEqual(E.validate(JSON.parse(JSON.stringify(s))), s);
-});
-
-test('unfinished stories reach a safe deadline ending and cannot restart', () => {
-  for (const def of D.stories) {
-    const s = fresh(42, { stones: 10000, realm: 2 }), followup = startStory(s, def);
-    while (s.year < s.stories[def.id].dueYear) { plan(s, ['rest', 'rest', 'rest']); E.advance(s); neutralYearEnd(s); }
-    plan(s, ['rest', 'rest', 'rest']); E.advance(s); assert.equal(s.pendingEvent, followup.id);
-    const incomplete = followup.choices.find(choice => choice.requireStoryComplete); if (incomplete) assert.ok(E.choiceError(s, incomplete));
-    const abandon = followup.choices.findIndex(choice => choice.resolveStory?.outcome === 'abandoned'); assert.ok(abandon >= 0); assert.equal(E.choiceError(s, followup.choices[abandon]), '');
-    E.choose(s, abandon); assert.equal(s.stories[def.id].status, 'abandoned'); assert.ok(E.actionError(s, def.actionId));
-    const invite = D.events.find(event => event.choices.some(choice => choice.startStory === def.id));
-    assert.equal(E.eventWeight(s, invite), 0); assert.ok(E.choiceError(s, invite.choices.find(choice => choice.startStory === def.id)));
+test('old ascension saves resume as true immortals with unchanged age and possessions', () => {
+  for (const version of [1, 2]) {
+    const s = fresh(1, { realm: 5, elapsedMonths: 120, phase: 'ending', cultivation: 333 }); s.inventory.manual = 1; s.perks = ['ancient-method'];
+    const old = legacy(s, version), loaded = E.validate(old); assert.equal(loaded.realm, 7); assert.equal(loaded.breakthroughs, 7); assert.equal(loaded.phase, 'planning'); assert.equal(loaded.age, 26); assert.equal(loaded.elapsedMonths, 120);
+    assert.equal(loaded.cultivation, 333); assert.equal(loaded.inventory.manual, 1); assert.deepEqual(loaded.perks, ['ancient-method']); roundtrip(loaded);
+    old.health = 0; const dead = E.validate(old); assert.equal(dead.phase, 'ending'); assert.equal(dead.ending.reason, 'fallen');
   }
 });
 
-test('simultaneous story followups settle earliest deadline first', () => {
-  const s = fresh(42, { year: 12, age: 27, realm: 2, stones: 10000 });
-  for (const [i, def] of D.stories.entries()) s.stories[def.id] = { status: 'active', progress: def.target, startedYear: 8 - i, dueYear: 11 - i, resolvedYear: null, ending: '' };
-  const earliest = D.stories[D.stories.length - 1]; assert.equal(E.eventPool(s)[0].id, earliest.followupEvent);
-  setPending(s, byId(D.events, earliest.followupEvent)); resolve(s);
-  assert.notEqual(s.stories[earliest.id].status, 'active'); assert.notEqual(E.eventPool(s)[0].id, earliest.followupEvent);
-});
-
-test('stories and ordinary encounters continue across the former sixtieth-year boundary', () => {
-  for (const def of D.stories) {
-    const s = fresh(42, { realm: 1, year: 60, age: 75, stones: 10000 }); assert.ok(E.eventPool(s).length);
-    const followup = startStory(s, def); assert.equal(s.year, 61); assert.equal(s.phase, 'planning');
-    assert.equal(s.stories[def.id].dueYear, 60 + def.duration); assert.deepEqual(E.validate(JSON.parse(JSON.stringify(s))), s);
-    const actions = Array(def.target).fill(def.actionId); while (actions.length < 3) actions.push('rest'); plan(s, actions); E.advance(s);
-    assert.equal(s.pendingEvent, followup.id); E.choose(s, followup.choices.findIndex(choice => choice.resolveStory?.outcome === 'completed'));
-    assert.equal(s.year, 62); assert.equal(s.stories[def.id].status, 'completed'); assert.deepEqual(E.validate(JSON.parse(JSON.stringify(s))), s);
-  }
-});
-
-test('new stories require enough remaining lifespan and breakthrough does not extend existing deadlines', () => {
-  for (const def of D.stories) {
-    const invite = D.events.find(event => event.choices.some(choice => choice.startStory === def.id));
-    const choice = invite.choices.find(choice => choice.startStory === def.id), limit = D.realms[1].lifespan;
-    const lastEligible = fresh(42, { realm: 1, age: limit - def.duration - 1, year: limit - def.duration - 16, stones: 10000 });
-    setPending(lastEligible, invite); assert.equal(E.choiceError(lastEligible, choice), ''); E.choose(lastEligible, invite.choices.indexOf(choice));
-    assert.equal(lastEligible.stories[def.id].dueYear, limit - 16); assert.deepEqual(E.validate(JSON.parse(JSON.stringify(lastEligible))), lastEligible);
-    const tooLate = fresh(42, { realm: 1, age: limit - def.duration, year: limit - def.duration - 15, stones: 10000 });
-    setPending(tooLate, invite); assert.ok(E.choiceError(tooLate, choice)); assert.equal(E.eventWeight(tooLate, invite), 0);
-    tooLate.realm = 2; tooLate.breakthroughs = 2; assert.equal(E.choiceError(tooLate, choice), ''); assert.ok(E.eventWeight(tooLate, invite) > 0);
-  }
-  const def = D.stories[0]; let extended = false;
-  for (let seed = 1; seed <= 100 && !extended; seed++) {
-    const s = fresh(Math.imul(seed, 2654435761) >>> 0, { realm: 1, cultivation: D.realms[1].threshold, year: 61, age: 76, stones: 10000 }); startStory(s, def);
-    const due = s.stories[def.id].dueYear; plan(s, ['breakthrough', 'rest', 'rest']); E.advance(s);
-    if (s.realm === 2) { extended = true; assert.equal(E.lifespanStatus(s).limit, 500); assert.equal(s.stories[def.id].dueYear, due); }
-  }
-  assert.ok(extended);
-});
-
-test('every encounter has a safe usable choice in its valid context', () => {
-  assert.ok(D.events.length >= 40); assert.equal(new Set(D.events.map(event => event.id)).size, D.events.length);
-  for (const event of D.events) {
-    const s = fresh(4, { year: Math.max(1, event.minYear || 1), realm: event.minRealm || 0, health: 1, resolve: 1, stones: 0 }); s.age = 15 + s.year;
-    if (event.requireSect) s.sect = D.sects[0].id;
-    if (event.requirePath) s.path = event.requirePath;
-    if (event.requireRoot) s.root = event.requireRoot;
-    if (event.storyOnly) { const story = byId(D.stories, event.storyId); s.stories[story.id] = { status: 'active', progress: 0, startedYear: 1, dueYear: 1 + story.duration, resolvedYear: null, ending: '' }; }
-    setPending(s, event); const safe = event.choices.find(choice => !choice.check && !choice.startStory && !E.choiceError(s, choice));
-    assert.ok(safe, `${event.id}: no usable guaranteed choice at zero stones`);
-    unchangedOnError(s, () => E.choose(s, -1)); unchangedOnError(s, () => E.choose(s, event.choices.length));
-  }
-});
-
-test('once-only encounters, story gates and attribute checks use current character state', () => {
-  const s = fresh(42, { realm: 3, year: 20, age: 35 });
-  for (const event of D.events.filter(event => event.once && !event.storyOnly)) { s.seen = []; if (E.eventWeight(s, event) > 0) { s.seen.push(event.id); assert.equal(E.eventWeight(s, event), 0, event.id); } }
-  const check = { stat: 'power', difficulty: E.power(s) + 20 }; const low = E.checkChance(s, check); s.physique = 100; s.spirit = 100; assert.ok(E.checkChance(s, check) > low);
-  assert.ok(E.checkChance(s, check) > 0 && E.checkChance(s, check) < 1);
-  for (const event of D.events.filter(event => event.storyOnly)) assert.equal(E.eventWeight(s, event), 0);
-});
-
-test('sect contribution encounters stay out of a wandering cultivator’s event pool', () => {
-  const events = D.events.filter(event => event.requireSect); assert.ok(events.length >= 2);
-  const s = fresh(42, { realm: 2, year: 20, age: 35, contribution: 100 });
-  for (const event of events) { assert.equal(E.eventWeight(s, event), 0); assert.ok(!E.eventPool(s).some(candidate => candidate.id === event.id)); }
-  E.joinSect(s, D.sects[0].id);
-  for (const event of events) { const eligible = E.clone(s); eligible.realm = event.minRealm || 0; eligible.morality = event.minMorality ?? event.maxMorality ?? 0; assert.ok(E.eventWeight(eligible, event) > 0); assert.ok(E.eventPool(eligible).some(candidate => candidate.id === event.id)); }
-});
-
-test('a choice cannot borrow its own attribute reward to improve the same check', () => {
-  const baseChoice = { text: '请教', result: '准备领悟', check: { stat: 'insight', difficulty: 50, success: { result: '成功领悟', effects: { spirit: 1 } }, failure: { result: '尚未参透', effects: { reputation: 1 } } } };
-  const event = { id: 'test-check-order', title: '前辈考验', choices: [baseChoice, { ...baseChoice, effects: { insight: 100 } }] };
-  D.events.push(event);
-  try {
-    for (let seed = 1; seed <= 30; seed++) {
-      const a = fresh(seed, { insight: 0 }), b = E.clone(a); setPending(a, event); setPending(b, event);
-      E.choose(a, 0); E.choose(b, 1); assert.equal(a.spirit, b.spirit); assert.equal(a.reputation, b.reputation);
-      assert.equal(b.insight, 100); assert.equal(a.insight, 0);
-    }
-  } finally { D.events.pop(); }
-});
-
-test('a rejected random reward leaves resources and the saved random sequence unchanged', () => {
-  const reward = { result: '获得灵剑', gainItems: { sword: 1 } }, empty = { result: '静观片刻', effects: {} };
-  const event = { id: 'test-full-random-reward', title: '剑冢赠礼', choices: [
-    { text: '问剑', effects: { stones: -20 }, check: { stat: 'insight', difficulty: 50, success: reward, failure: empty } },
-    { text: '赠剑', effects: { stones: -20 }, check: { stat: 'insight', difficulty: 50, success: empty, failure: reward } }
-  ] };
-  D.events.push(event);
-  try {
-    const s = fresh(); s.inventory.sword = 1; setPending(s, event);
-    assert.match(E.choiceError(s, event.choices[0]), /成功后/); assert.match(E.choiceError(s, event.choices[1]), /未达成时/);
-    unchangedOnError(s, () => E.choose(s, 0)); unchangedOnError(s, () => E.choose(s, 1));
-  }
-  finally { D.events.pop(); }
-});
-
-test('ordinary lives reach age one hundred after eighty-four annual turns and preserve story history', () => {
-  const s = fresh(123), finalActionYear = D.realms[0].lifespan - 16;
-  for (let year = 1; year <= finalActionYear; year++) {
-    assert.equal(s.year, year); assert.equal(s.age, 15 + year); assert.equal(s.phase, 'planning');
-    plan(s, ['rest', 'work', 'rest']); E.advance(s);
-    if (year === finalActionYear) { const def = D.stories[0]; s.stories[def.id] = { status: 'active', progress: 0, startedYear: finalActionYear - def.duration, dueYear: finalActionYear, resolvedYear: null, ending: '' }; }
-    neutralYearEnd(s);
-  }
-  assert.equal(s.phase, 'ending'); assert.equal(s.year, 85); assert.equal(s.age, 100); assert.equal(s.ending.reason, 'lifespan'); assert.equal(s.stories[D.stories[0].id].status, 'abandoned');
-  assert.deepEqual(E.validate(JSON.parse(JSON.stringify(s))), s); unchangedOnError(s, () => E.setPlan(s, ['rest'])); unchangedOnError(s, () => E.buyItem(s, 'herb'));
-});
-
-test('fatal damage ends the life before scheduled rest or yearly recovery can revive it', () => {
-  const s = fresh(42, { health: 1 });
-  const action = D.actions.find(candidate => !E.actionError(s, candidate.id) && (E.actionPreview(s, candidate.id).health || 0) < 0);
-  assert.ok(action, 'at least one available action risks health'); plan(s, [action.id, 'rest', 'rest']); E.advance(s);
-  assert.equal(s.health, 0); assert.equal(s.phase, 'ending'); assert.equal(s.pendingEvent, null); assert.equal(s.ending.id, 'fallen');
-  assert.equal(s.year, 1); assert.equal(s.age, 16);
-  assert.deepEqual(E.validate(JSON.parse(JSON.stringify(s))), s);
-});
-
-test('optional save fields migrate to independent empty collections and unknown keys are removed', () => {
-  const s = fresh(); for (const key of ['inventory', 'buffs', 'perks', 'conditions', 'stories']) delete s[key]; s.unknownField = 'untrusted';
-  const loaded = E.validate(s); assert.deepEqual(loaded.inventory, {}); assert.deepEqual(loaded.buffs, {}); assert.deepEqual(loaded.perks, []);
-  assert.deepEqual(loaded.conditions, []); assert.deepEqual(loaded.stories, {}); assert.equal(loaded.unknownField, undefined);
-  const other = E.validate(s); loaded.inventory.herb = 1; assert.equal(other.inventory.herb, undefined);
-});
-
-test('healthy version-one sixty-year endings resume once without replaying prior rewards', () => {
-  const legacy = fresh(77, { version: 1, year: 60, age: 75, realm: 1, phase: 'ending', ending: { id: 'companions', title: '旧结局', desc: '六十年旧卷' }, stones: 789 });
-  const completed = D.stories[0], abandoned = D.stories[1];
-  legacy.stories[completed.id] = { status: 'completed', progress: completed.target, startedYear: 50, dueYear: 50 + completed.duration, resolvedYear: 52, ending: '奖励已结算' };
-  legacy.stories[abandoned.id] = { status: 'abandoned', progress: 1, startedYear: 55, dueYear: 55 + abandoned.duration, resolvedYear: 59, ending: '旧故事已结束' };
-  legacy.perks = ['road-guide']; legacy.inventory = { manual: 1, herb: 2 }; legacy.seen = [completed.followupEvent, abandoned.followupEvent];
-  legacy.log.push({ year: 60, text: '旧卷最后一笔，已经领过酬劳。', type: 'milestone' });
-  const original = JSON.stringify(legacy), loaded = E.validate(legacy);
-  assert.equal(JSON.stringify(legacy), original); assert.equal(loaded.version, 3); assert.equal(loaded.phase, 'planning'); assert.equal(loaded.year, 61); assert.equal(loaded.age, 76);
-  assert.equal(loaded.ending, null); assert.deepEqual(loaded.plan, []); assert.equal(loaded.stones, legacy.stones); assert.equal(loaded.seed, legacy.seed);
-  assert.deepEqual(loaded.stories, legacy.stories); assert.deepEqual(loaded.perks, legacy.perks); assert.deepEqual(loaded.inventory, legacy.inventory);
-  assert.ok(loaded.log.some(entry => entry.text === legacy.log.at(-1).text)); assert.deepEqual(E.validate(loaded), loaded);
-  assert.ok(!E.eventPool(loaded).some(event => event.storyOnly)); neutralYearEnd(loaded);
-  assert.equal(loaded.year, 62); assert.equal(loaded.stones, legacy.stones); assert.deepEqual(loaded.stories, legacy.stories);
-});
-
-test('old deaths remain finished and old ascensions resume as true immortals without duplicating rewards', () => {
-  for (const version of [1, 2]) for (const kind of ['ongoing', 'pending-encounter', 'fallen', 'ascended']) {
-    const legacy = fresh(42, { version, year: 20, age: 35 });
-    if (kind === 'pending-encounter') setPending(legacy, byId(D.events, 'quiet-snow'));
-    if (kind === 'fallen') Object.assign(legacy, { phase: 'ending', health: 0, ending: { id: 'fallen', title: '旧陨落', desc: '旧卷' } });
-    if (kind === 'ascended') Object.assign(legacy, { phase: 'ending', realm: 5, breakthroughs: 5, ending: { id: 'ascended', title: '旧飞升', desc: '旧卷' } });
-    legacy.inventory = { manual: 1, herb: 3 }; legacy.perks = ['road-guide'];
-    const loaded = E.validate(legacy); assert.equal(loaded.version, 3); assert.equal(loaded.age, 35); assert.equal(loaded.year, 20);
-    assert.deepEqual(loaded.inventory, legacy.inventory); assert.deepEqual(loaded.perks, legacy.perks); assert.equal(loaded.stones, legacy.stones); assert.equal(loaded.seed, legacy.seed);
-    if (kind === 'ascended') { assert.equal(loaded.realm, 7); assert.equal(loaded.breakthroughs, 7); assert.equal(loaded.phase, 'planning'); assert.equal(loaded.ending, null); assert.ok(E.breakthroughStatus(loaded).threshold > 0); }
-    else if (kind === 'fallen') { assert.equal(loaded.phase, 'ending'); assert.equal(loaded.ending.reason, kind); }
-    else assert.equal(loaded.phase, legacy.phase);
-    assert.deepEqual(E.validate(loaded), loaded);
-  }
-});
-
-test('late-life saves accept centuries of valid history and reject impossible age or premature endings', () => {
-  const veteran = fresh(42, { realm: 4, year: 1885, age: 1900, failures: 100, contribution: 110000, stones: 500000 });
-  assert.deepEqual(E.validate(JSON.parse(JSON.stringify(veteran))), veteran);
-  const invalid = [
-    s => { s.year = 60; s.age = 75; s.phase = 'ending'; s.ending = { id: 'wanderer', title: '提前结局', desc: '' }; },
-    s => { s.year = 85; s.age = 100; }, s => { s.year = 86; s.age = 101; },
-    s => { s.age++; }, s => { s.version = 99; },
-    s => { s.version = 1; s.year = 61; s.age = 76; },
-    s => { s.version = 1; s.year = 59; s.age = 74; s.phase = 'ending'; s.ending = { id: 'wanderer', title: '假结局', desc: '' }; }
+test('save validation rejects impossible time, roots, roles, resources and pending encounters', () => {
+  const mutations = [
+    s => { s.elapsedMonths = -1; }, s => { s.elapsedMonths = 1.5; }, s => { s.year++; }, s => { s.age++; },
+    s => { s.rootGrade = 'missing'; }, s => { s.rootGrade = 'heavenly'; s.rootElements = ['metal', 'water']; },
+    s => { s.rootGrade = 'dual'; s.rootElements = ['metal', 'metal']; }, s => { s.rootGrade = 'variant'; s.rootElements = ['metal']; },
+    s => { s.rootElements = ['water']; }, s => { s.stones = -1; }, s => { s.inventory.manual = 2; }, s => { s.buffs.ward = 37; },
+    s => { s.conditions = ['missing']; }, s => { s.perks = ['missing']; }, s => { s.plan = ['rest']; },
+    s => { s.sectRank = 'inner'; }, s => { s.sectMerit = 1; }, s => { s.sect = 'cloud-sword'; s.sectRank = 'lord'; s.sectJoinedMonth = 0; },
+    s => { s.phase = 'ending'; }, s => { s.phase = 'event'; s.pendingEvent = 'missing'; }, s => { s.phase = 'event'; s.pendingEvent = 'secret-finish'; },
+    s => { s.realm = 2; s.breakthroughs = 1; }, s => { delete s.world; }, s => { s.world.version = 99; }
   ];
-  for (const mutate of invalid) { const s = fresh(); mutate(s); assert.throws(() => E.validate(s), mutate.toString()); }
+  for (const mutate of mutations) { const s = fresh(); mutate(s); assert.throws(() => E.validate(s)); }
+  const s = fresh(); act(s, 'rest'); s.lastAction.months = s.elapsedMonths + 1; assert.throws(() => E.validate(s));
+  const extra = fresh(); extra.notAStateField = { arbitrary: true }; assert.equal(E.validate(extra).notAStateField, undefined);
 });
 
-test('save validation rejects malformed resources, catalog references and impossible pending encounters', () => {
-  const bad = [
-    s => { s.year = 0; }, s => { s.realm = 6; }, s => { s.stones = -1; }, s => { s.health = Infinity; },
-    s => { s.inventory.herb = -1; }, s => { s.inventory.herb = 1.5; }, s => { s.inventory.unknown = 1; },
-    s => { s.inventory.sword = 2; }, s => { s.buffs.ward = 99; }, s => { s.buffs.unknown = 1; },
-    s => { s.conditions = ['unknown']; }, s => { s.perks = ['unknown']; }, s => { s.sect = 'unknown'; },
-    s => { s.plan = ['unknown']; }, s => { s.phase = 'event'; s.pendingEvent = 'unknown'; },
-    s => { s.phase = 'event'; s.pendingEvent = D.stories[0].followupEvent; },
-    s => { s.stories[D.stories[0].id] = { status: 'active', progress: -1, startedYear: 1, dueYear: 4, resolvedYear: null, ending: '' }; }
-  ];
-  for (const mutate of bad) { const s = fresh(); mutate(s); assert.throws(() => E.validate(s), mutate.toString()); }
-  const s = fresh(), validated = E.validate(s); validated.inventory.herb = 1; assert.equal(s.inventory.herb, undefined);
-});
-
-test('many complete seeded lives remain deterministic, playable and reloadable', () => {
-  for (let seed = 1; seed <= 30; seed++) {
-    let s = fresh(seed); let turns = 0;
-    while (s.phase !== 'ending') {
-      assert.ok(++turns <= D.realms[0].lifespan - 16); plan(s, ['meditate', 'work', 'rest']); E.advance(s); if (s.phase === 'event') resolve(s);
-      assert.ok(Number.isFinite(s.stones) && s.stones >= 0); assert.ok(s.health >= 0 && s.health <= 100); s = E.validate(JSON.parse(JSON.stringify(s)));
-    }
-    assert.equal(s.ending.reason, 'lifespan'); assert.equal(s.year, 85); assert.equal(s.age, 100);
-  }
-});
-
-test('the immortal emperor is achievable through ordinary play without edited stats or unlimited money', () => {
-  const completedYears = [];
-  for (let seed = 1; seed <= 10; seed++) {
-    let s = E.create({ name: '踏实修行', root: D.roots[0].id, path: D.paths[0].id, talents: E.drawTalents(seed).slice(0, 2), seed });
-    while (s.phase !== 'ending') {
-      if (!s.inventory.manual && E.itemStatus(s, 'manual').canBuy) E.buyItem(s, 'manual');
-      if (!s.sect) { const sect = D.sects.find(candidate => !E.sectError(s, candidate.id)); if (sect) E.joinSect(s, sect.id); }
-      const actions = [];
-      if (E.breakthroughStatus(s).ready) actions.push('breakthrough');
-      while (actions.length < 2) actions.push(s.insight < 75 ? 'comprehend' : 'meditate');
-      actions.push('rest'); plan(s, actions); E.advance(s); if (s.phase === 'event') resolve(s);
-      s = E.validate(JSON.parse(JSON.stringify(s)));
-    }
-    assert.equal(s.realm, D.realms.length - 1, `seed ${seed} did not finish: year=${s.year}, cultivation=${s.cultivation}, insight=${s.insight}, failures=${s.failures}`);
-    assert.equal(s.ending.id, 'emperor'); completedYears.push(s.year);
-  }
-  assert.ok(Math.max(...completedYears) < 500, `emperor years: ${completedYears.join(', ')}`);
-});
-
-test('all one hundred root and path combinations remain valid choices and preserve their identity on reload', () => {
-  assert.equal(D.roots.length, 10); assert.equal(D.paths.length, 10);
-  assert.equal(new Set(D.roots.map(root => root.id)).size, 10); assert.equal(new Set(D.paths.map(path => path.id)).size, 10);
-  let matches = 0;
-  for (const root of D.roots) for (const path of D.paths) {
-    const s = forPath(path, root.id), status = E.pathStatus(s); const matched = path.affinityRoots.includes(root.id);
-    assert.equal(status.rootId, root.id); assert.equal(status.pathId, path.id); assert.equal(status.rootName, root.name); assert.equal(status.pathName, path.name);
-    assert.equal(status.matched, matched); assert.equal(status.techniqueId, path.technique); assert.ok(status.summary);
-    assert.deepEqual(status.affinityRoots, path.affinityRoots);
-    assert.deepEqual([...status.recommendedPaths].sort(), D.paths.filter(candidate => candidate.affinityRoots.includes(root.id)).map(candidate => candidate.id).sort());
-    if (matched) matches++; else assert.deepEqual(status.bonuses, {});
-    plan(s, ['meditate', 'comprehend', 'rest']); assert.deepEqual(E.validate(JSON.parse(JSON.stringify(s))), s);
-  }
-  assert.equal(matches, 20);
-});
-
-test('the ten paths have the intended two root affinities and unique exclusive techniques', () => {
-  const affinities = { sword: ['metal', 'wind'], alchemy: ['wood', 'fire'], wander: ['water', 'wind'], body: ['earth', 'yang'], formation: ['earth', 'water'], beast: ['wood', 'yang'], ice: ['ice', 'water'], thunder: ['thunder', 'metal'], soul: ['yin', 'ice'], yang: ['yang', 'fire'] };
-  assert.equal(new Set(D.paths.map(path => path.technique)).size, 10);
-  for (const path of D.paths) {
-    assert.deepEqual([...path.affinityRoots].sort(), [...affinities[path.id]].sort());
-    const technique = byId(D.actions, path.technique); assert.equal(technique.requirePath, path.id);
-    assert.deepEqual(E.pathStatus({ root: path.affinityRoots[0], path: path.id }).bonuses, { actions: { meditate: { cultivation: 4 }, [path.technique]: { cultivation: 6 } }, breakthroughBonus: .04 });
-  }
-});
-
-test('affinity grants its advertised growth and probability bonuses in addition to the root’s existing benefits', () => {
-  for (const path of D.paths) {
-    const matchedRoot = byId(D.roots, path.affinityRoots[0]), otherRoot = D.roots.find(root => !path.affinityRoots.includes(root.id));
-    const technique = byId(D.actions, path.technique), matching = prepareTechnique(forPath(path, matchedRoot.id), technique), unrelated = prepareTechnique(forPath(path, otherRoot.id), technique);
-    for (const s of [matching, unrelated]) Object.assign(s, { cultivation: 0, insight: 10, physique: 20, spirit: 20, health: 100, resolve: 50 });
-    for (const [id, bonus] of [['meditate', 4], [technique.id, 6]]) {
-      const first = (E.actionPreview(matching, id).cultivation || 0) - (matchedRoot.actions?.[id]?.cultivation || 0);
-      const second = (E.actionPreview(unrelated, id).cultivation || 0) - (otherRoot.actions?.[id]?.cultivation || 0);
-      assert.equal(first - second, bonus, `${path.id}/${id}`);
-    }
-    const probability = E.breakthroughStatus(matching).chance - E.breakthroughStatus(unrelated).chance - (matchedRoot.breakthroughBonus || 0) + (otherRoot.breakthroughBonus || 0);
-    assert.ok(Math.abs(probability - .04) < 1e-10, path.id);
-    const ids = ['meditate', technique.id, 'rest'];
-    for (const s of [matching, unrelated]) { plan(s, ids); E.advance(s); }
-    const rootGrowth = root => ids.reduce((sum, id) => sum + (root.actions?.[id]?.cultivation || 0), 0);
-    assert.equal(matching.cultivation - rootGrowth(matchedRoot) - unrelated.cultivation + rootGrowth(otherRoot), 10, path.id);
-  }
-});
-
-test('exclusive techniques execute for their own path and reject other paths even after importing a save', () => {
-  for (const path of D.paths) {
-    const technique = byId(D.actions, path.technique), s = prepareTechnique(forPath(path), technique);
-    assert.equal(E.actionError(s, technique.id), ''); const before = E.clone(s), expected = E.actionPreview(s, technique.id);
-    plan(s, [technique.id, 'rest', 'rest']); E.advance(s);
-    assert.equal(s.cultivation - before.cultivation, (expected.cultivation || 0) + 2 * (E.actionPreview(before, 'rest').cultivation || 0), path.id);
-    for (const id of new Set([...Object.keys(technique.costItems || {}), ...Object.keys(technique.gainItems || {})])) {
-      assert.equal(s.inventory[id] || 0, (before.inventory[id] || 0) - (technique.costItems?.[id] || 0) + (technique.gainItems?.[id] || 0), `${path.id}/${id}`);
-    }
-    assert.deepEqual(E.validate(JSON.parse(JSON.stringify(s))), s);
-    const foreign = E.clone(before); foreign.path = D.paths.find(candidate => candidate.id !== path.id).id;
-    assert.ok(E.actionError(foreign, technique.id)); unchangedOnError(foreign, () => E.addPlan(foreign, technique.id));
-    foreign.plan = [technique.id, 'rest', 'rest']; assert.throws(() => E.validate(foreign));
-    if (byId(D.conditions, 'injured').blocks.includes(technique.id)) {
-      const injured = E.clone(before); injured.conditions.push('injured'); assert.match(E.actionError(injured, technique.id), /经脉受伤/);
-      unchangedOnError(injured, () => E.addPlan(injured, technique.id));
+test('invalid legacy saves are rejected before migration and remaining buffs are not silently repaired', () => {
+  for (const version of [1, 2, 3]) {
+    const base = legacy(fresh(), version);
+    for (const mutate of [s => { s.age = 5; }, s => { s.realm = 99; }, s => { s.buffs.ward = 4; }, s => { s.plan = ['missing']; }, s => { s.inventory.herb = -1; }]) {
+      const s = E.clone(base); mutate(s); assert.throws(() => E.validate(s));
     }
   }
 });
 
-test('exclusive techniques reserve their material and spirit-stone costs in action order', () => {
-  const materialPaths = D.paths.filter(path => Object.keys(byId(D.actions, path.technique).costItems || {}).length); assert.ok(materialPaths.length);
-  for (const path of materialPaths) {
-    const technique = byId(D.actions, path.technique), s = prepareTechnique(forPath(path), technique);
-    for (const id of Object.keys(technique.costItems)) delete s.inventory[id]; unchangedOnError(s, () => E.addPlan(s, technique.id));
-    for (const [id, count] of Object.entries(technique.costItems)) s.inventory[id] = count;
-    unchangedOnError(s, () => plan(s, [technique.id, technique.id, 'rest'])); plan(s, [technique.id, 'rest', 'rest']); E.advance(s);
-    for (const id of Object.keys(technique.costItems)) assert.equal(s.inventory[id] || 0, technique.gainItems?.[id] || 0);
-  }
-  const path = D.paths.find(candidate => (byId(D.actions, candidate.technique).effects.stones || 0) < 0); assert.ok(path);
-  const technique = byId(D.actions, path.technique), s = prepareTechnique(forPath(path), technique); s.stones = 0;
-  unchangedOnError(s, () => plan(s, [technique.id, 'work', 'rest'])); plan(s, ['work', technique.id, 'rest']);
-  const expected = E.actionPreview(s, 'work').stones + E.actionPreview(s, technique.id).stones; E.advance(s); assert.equal(s.stones, expected);
+test('crossing a month and calendar-year boundary updates world state without recharging event time', () => {
+  const s = fresh(1, { elapsedMonths: 11 }); s.buffs.ward = 5; const previous = E.clone(s.world.auction); E.performAction(s, 'rest');
+  assert.equal(s.elapsedMonths, 12); assert.equal(s.year, 2); assert.equal(s.world.year, 2); assert.equal(s.world.auction.year, 2); assert.notEqual(s.world.auction.year, previous.year);
+  assert.equal(s.buffs.ward, 4); neutral(s); assert.equal(s.elapsedMonths, 12); assert.equal(s.buffs.ward, 4); roundtrip(s);
 });
 
-test('all ten path encounters are isolated, offer safe choices and preserve their material consequences', () => {
-  const events = D.events.filter(event => event.requirePath); assert.equal(events.length, 10); assert.ok(D.events.length >= 50);
-  for (const event of events) {
-    assert.equal(event.once, true); assert.equal(event.minYear, 2);
-    const path = byId(D.paths, event.requirePath), owner = forPath(path, path.affinityRoots[0], { year: 3, age: 18, stones: 10000, insight: 50, spirit: 50, health: 100 });
-    assert.ok(E.eventWeight(owner, event) > 0); assert.ok(E.eventPool(owner).some(candidate => candidate.id === event.id));
-    const foreign = E.clone(owner); foreign.path = D.paths.find(candidate => candidate.id !== path.id).id;
-    assert.equal(E.eventWeight(foreign, event), 0); assert.ok(!E.eventPool(foreign).some(candidate => candidate.id === event.id));
-    setPending(foreign, event); assert.throws(() => E.validate(foreign)); unchangedOnError(foreign, () => E.choose(foreign, 0));
-    setPending(owner, event); assert.deepEqual(E.validate(JSON.parse(JSON.stringify(owner))), owner);
-    const poor = E.clone(owner); poor.stones = 0; poor.contribution = 0;
-    assert.ok(event.choices.some(choice => !choice.check && !E.choiceError(poor, choice)), event.id);
-    let materialChoiceTested = false;
-    for (const [index, choice] of event.choices.entries()) {
-      if (choice.check) continue;
-      const participant = E.clone(owner);
-      for (const [id, count] of Object.entries(choice.costItems || {})) participant.inventory[id] = count;
-      if (E.choiceError(participant, choice)) continue;
-      const before = E.clone(participant); E.choose(participant, index);
-      for (const id of new Set([...Object.keys(choice.costItems || {}), ...Object.keys(choice.gainItems || {})])) {
-        materialChoiceTested = true; assert.equal(participant.inventory[id] || 0, (before.inventory[id] || 0) - (choice.costItems?.[id] || 0) + (choice.gainItems?.[id] || 0));
-      }
-      if (choice.grantPerk) { materialChoiceTested = true; assert.ok(participant.perks.includes(choice.grantPerk)); }
-      if (choice.addCondition) { materialChoiceTested = true; assert.ok(participant.conditions.includes(choice.addCondition)); }
-      if (choice.buff) { materialChoiceTested = true; assert.equal(participant.buffs[choice.buff] || 0, byId(D.buffs, choice.buff).duration - 1); }
-      participant.seen.push(event.id); assert.equal(E.eventWeight(participant, event), 0); assert.deepEqual(E.validate(JSON.parse(JSON.stringify(participant))), participant);
+test('many complete seeded mortal lives are deterministic, playable and reloadable', () => {
+  function run(seed) {
+    let s = E.create({ name: '山水一生', seed, path: 'wander', talents: ['good-sleeper', 'iron-will'] }), steps = 0;
+    while (s.phase !== 'ending' && steps++ < 1200) {
+      if (s.phase === 'event') { resolve(s); continue; }
+      if (E.timeStatus(s).remainingMonths === 1) { E.waitToEnd(s); break; }
+      let id = s.health < 55 || s.resolve < 45 ? 'rest' : steps % 3 ? 'meditate' : 'work';
+      if (E.actionError(s, id)) id = 'rest'; E.performAction(s, id);
+      if (steps % 29 === 0) s = E.validate(E.clone(s));
     }
-    assert.ok(materialChoiceTested || event.choices.some(choice => choice.check?.success?.gainItems || choice.check?.success?.grantPerk || choice.check?.success?.buff || choice.check?.failure?.addCondition || choice.check?.failure?.buff), `${event.id} must offer more than plain stat changes`);
+    assert.equal(s.phase, 'ending'); assert.ok(['lifespan', 'fallen'].includes(s.ending.reason)); roundtrip(s); return s;
   }
+  for (const seed of [1, 9, 32, 818, 9901, 22471]) assert.deepEqual(run(seed), run(seed));
 });
 
-test('root restrictions protect annual plans and pending encounters as well as event selection', () => {
-  const action = { id: 'test-root-technique', name: '引冰入脉', category: '修行', effects: { cultivation: 5 }, requireRoot: 'ice' };
-  const event = { id: 'test-root-encounter', title: '冰魄共鸣', requireRoot: 'ice', choices: [{ text: '静心感应', result: '冰魄化入灵息。', effects: { cultivation: 5 } }] };
-  D.actions.push(action); D.events.push(event);
-  try {
-    const rightful = forPath(byId(D.paths, 'ice'), 'ice'), foreign = forPath(byId(D.paths, 'sword'), 'metal');
-    assert.equal(E.actionError(rightful, action.id), ''); assert.ok(E.actionError(foreign, action.id)); unchangedOnError(foreign, () => E.addPlan(foreign, action.id));
-    const invalidPlan = E.clone(foreign); invalidPlan.plan = [action.id]; assert.throws(() => E.validate(invalidPlan));
-    assert.ok(E.eventWeight(rightful, event) > 0); assert.equal(E.eventWeight(foreign, event), 0);
-    setPending(foreign, event); assert.throws(() => E.validate(foreign)); unchangedOnError(foreign, () => E.choose(foreign, 0));
-    setPending(rightful, event); assert.equal(E.choiceError(rightful, event.choices[0]), ''); E.choose(rightful, 0); assert.ok(rightful.cultivation >= 5);
-  } finally { D.actions.pop(); D.events.pop(); }
-});
-
-test('older roots and paths reload without applying starting gifts again or invalidating generic sword practice', () => {
-  for (const root of ['metal', 'wood', 'water', 'fire', 'earth']) for (const path of ['sword', 'alchemy', 'wander']) {
-    const s = E.create({ name: '旧卷修士', root, path, talents: ['early-awakening', 'old-inheritance'], seed: 77 });
-    Object.assign(s, { year: 5, age: 20, cultivation: 17, stones: 41, health: 63, insight: 29, spirit: 21, physique: 32, reputation: 11, resolve: 72 });
-    alignWorld(s);
-    s.inventory.sword = 1; plan(s, ['sword-study', 'rest', 'rest']);
-    assert.deepEqual(E.validate(JSON.parse(JSON.stringify(s))), s);
-    const legacy = E.clone(s); legacy.version = 1; const loaded = E.validate(legacy);
-    assert.equal(loaded.version, 3); for (const key of ['root','path','cultivation','stones','health','insight','spirit','physique','reputation','resolve']) assert.equal(loaded[key], legacy[key]); assert.deepEqual(loaded.plan, legacy.plan); assert.deepEqual(E.validate(loaded), loaded);
-  }
-});
-
-test('mahayana, tribulation and ascension all continue the same life and preserve possessions', () => {
-  for (const from of [4, 5, 6, 7]) {
-    let checked = false;
-    for (let seed = 1; seed <= 40 && !checked; seed++) {
-      const s = fresh(seed, { realm: from, cultivation: D.realms[from].threshold, insight: 100, resolve: 100 });
-      s.inventory.manual = 1; s.perks.push('road-guide'); plan(s, ['breakthrough', 'rest', 'rest']); E.advance(s);
-      if (s.realm !== from + 1) continue;
-      checked = true; assert.equal(s.phase, 'event'); assert.equal(s.ending, null); assert.ok(s.pendingEvent);
-      assert.equal(s.inventory.manual, 1); assert.ok(s.perks.includes('road-guide'));
-      if (s.realm === 7) assert.ok(s.lastYear.notes.some(note => note.includes('飞升真仙')));
-      neutralYearEnd(s); assert.equal(s.phase, 'planning'); assert.equal(s.year, 2); assert.deepEqual(E.validate(s), s);
+test('all randomly drawn grade types can reach the immortal emperor with ordinary resources', () => {
+  const seeds = {};
+  for (let i = 1; Object.keys(seeds).length < 5 && i < 20000; i++) { const seed = Math.imul(i, 2654435761) >>> 0, grade = E.drawRoot(seed).rootGrade; seeds[grade] ??= seed; }
+  assert.equal(Object.keys(seeds).length, 5);
+  for (const [grade, seed] of Object.entries(seeds)) {
+    let s = E.create({ name: '一步一境', seed, path: 'sword', talents: ['old-inheritance', 'night-reader'] }), steps = 0;
+    E.buyItem(s, 'manual');
+    while (s.phase !== 'ending' && steps++ < 1800) {
+      if (s.phase === 'event') { resolve(s); continue; }
+      if (!s.sect && s.realm >= 1) { E.joinSect(s, 'cloud-sword'); continue; }
+      if (!s.inventory['spirit-flute'] && E.itemStatus(s, 'spirit-flute').canBuy) E.buyItem(s, 'spirit-flute');
+      let id;
+      if (s.health < 75 || s.resolve < 72) id = 'rest';
+      else if (E.breakthroughStatus(s).ready) id = 'breakthrough';
+      else if (s.insight < 70) id = 'comprehend';
+      else id = 'meditate';
+      assert.equal(E.actionError(s, id), '', grade + ' can continue'); E.performAction(s, id);
+      if (steps % 23 === 0) s = E.validate(E.clone(s));
     }
-    assert.ok(checked, `realm ${from} did not advance`);
+    assert.equal(s.rootGrade, grade); assert.equal(s.phase, 'ending', grade + ' terminates'); assert.equal(s.ending.id, 'emperor', grade + ' ascends through actual play'); assert.equal(s.realm, 13); assert.ok(s.stones >= 0); roundtrip(s);
   }
-});
-
-test('realm cultivation and earnings grow while affinity bonuses remain flat', () => {
-  const low = fresh(), high = fresh(42, { realm: 10 });
-  assert.ok(E.actionPreview(high, 'meditate').cultivation > E.actionPreview(low, 'meditate').cultivation * 5);
-  assert.ok(E.actionPreview(high, 'work').stones > E.actionPreview(low, 'work').stones * 5);
-  assert.ok(E.actionPreview(high, 'mission').contribution > E.actionPreview(low, 'mission').contribution * 5);
-  const unmatched = E.clone(high); unmatched.root = 'wood';
-  assert.equal(E.actionPreview(high, 'meditate').cultivation - E.actionPreview(unmatched, 'meditate').cultivation, 4);
-  assert.equal(E.actionPreview(high, 'sword-intent').cultivation - E.actionPreview(unmatched, 'sword-intent').cultivation, 6);
-});
-
-test('good and evil reputation changes actual prices and charity restores public standing', () => {
-  const s = fresh(42, { realm: 1, morality: -65, stones: 5000 }), normal = fresh(42, { realm: 1, stones: 5000 });
-  assert.ok(E.itemStatus(s, 'herb').price > E.itemStatus(normal, 'herb').price);
-  assert.ok(E.sectError(s, D.sects[0].id));
-  plan(s, ['charity', 'charity', 'charity']); E.advance(s); assert.equal(s.morality, -41); neutralYearEnd(s);
-  assert.equal(E.sectError(s, D.sects[0].id), ''); E.joinSect(s, D.sects[0].id);
-  s.morality = 60; normal.sect = s.sect; assert.ok(E.itemStatus(s, 'herb').price < E.itemStatus(normal, 'herb').price);
-  for (const value of [-101, 101, NaN, 0.5]) { const bad = E.clone(s); bad.morality = value; assert.throws(() => E.validate(bad)); }
-});
-
-test('negative encounters impose real costs and moral gates change the eligible pool', () => {
-  const negative = D.events.filter(event => event.negative); assert.ok(negative.length >= 12);
-  for (const event of negative) {
-    const s = fresh(42, { realm: event.minRealm || 0, year: event.minYear || 1, age: (event.minYear || 1) + 15, morality: event.minMorality ?? event.maxMorality ?? 0 });
-    if (event.requireSect) s.sect = D.sects[0].id;
-    if (event.requirePath) s.path = event.requirePath;
-    setPending(s, event); s.stones = 0;
-    const i = event.choices.findIndex(choice => !choice.check && !E.choiceError(s, choice)); assert.ok(i >= 0, event.id);
-    const before = E.clone(s); E.choose(s, i);
-    assert.ok(s.health < before.health || s.resolve < before.resolve || s.cultivation < before.cultivation || s.conditions.length > before.conditions.length || s.reputation < before.reputation, event.id);
-    assert.deepEqual(E.validate(s), s);
-  }
-  const gate = negative.find(event => event.maxMorality !== undefined); assert.ok(gate);
-  const wicked = fresh(42, { morality: -90, realm: gate.minRealm || 0, year: gate.minYear || 1, age: (gate.minYear || 1) + 15 });
-  if (gate.requireSect) wicked.sect = D.sects[0].id;
-  assert.ok(E.eventWeight(wicked, gate) > 0); wicked.morality = 90; assert.equal(E.eventWeight(wicked, gate), 0);
 });
