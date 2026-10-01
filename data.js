@@ -16,12 +16,24 @@
       { id: 'wood', name: '木灵根', desc: '亲近草木，采药能养神，炼丹时灵息更顺。', start: { health: 10 }, actions: { gather: { spirit: 2 }, alchemy: { cultivation: 4 } } },
       { id: 'water', name: '水灵根', desc: '心神澄澈，静坐与参悟如细水长流。', start: { spirit: 5 }, actions: { meditate: { cultivation: 3 }, comprehend: { insight: 1 } } },
       { id: 'fire', name: '火灵根', desc: '灵力旺盛，修行进境快，炼丹也更有灵性。', start: { cultivation: 15 }, actions: { meditate: { cultivation: 4 }, alchemy: { spirit: 1 } } },
-      { id: 'earth', name: '土灵根', desc: '厚重安稳，身体强健，采矿与休整更有效。', start: { physique: 4, health: 6 }, actions: { mine: { physique: 2 }, rest: { health: 4 } } }
+      { id: 'earth', name: '土灵根', desc: '厚重安稳，身体强健，采矿与休整更有效。', start: { physique: 4, health: 6 }, actions: { mine: { physique: 2 }, rest: { health: 4 } } },
+      { id: 'ice', name: '冰灵根', desc: '灵息凝寒，心思澄定。参悟更易明理，休整时也能迅速安定心境。', start: { insight: 4, resolve: 4 }, actions: { comprehend: { insight: 1 }, rest: { resolve: 3 } } },
+      { id: 'thunder', name: '雷灵根', desc: '雷意藏于经脉。炼体与凝神时能将震荡化成修为，宜留意气血消耗。', start: { physique: 3, spirit: 3 }, actions: { train: { cultivation: 4 }, 'spirit-practice': { cultivation: 2 } } },
+      { id: 'wind', name: '风灵根', desc: '灵气轻灵，身法敏捷。山海游历消耗更少，也更容易找到沿途生计。', start: { spirit: 5, stones: 20 }, actions: { explore: { health: 2, stones: 10 } } },
+      { id: 'yin', name: '阴灵根', desc: '识海敏锐，却稍欠阳和。凝神观想进境更好，参悟能安定心境。', start: { spirit: 6, health: -5 }, actions: { 'spirit-practice': { spirit: 2 }, comprehend: { resolve: 1 } } },
+      { id: 'yang', name: '阳灵根', desc: '阳气充盈，筋骨有力。炼体时更耐消耗，归舍休整也恢复得更快。', start: { health: 10, physique: 3 }, actions: { train: { health: 3 }, rest: { health: 4 } } }
     ],
     paths: [
-      { id: 'sword', name: '剑修', desc: '以剑破局。炼体、斗法与江湖行走更得心应手。', start: { physique: 6, reputation: 2 }, actions: { train: { physique: 2 }, explore: { cultivation: 3 } } },
-      { id: 'alchemy', name: '丹修', desc: '以丹养道。采药、开炉与经营灵材是修行的一部分。', start: { insight: 4, stones: 60 }, actions: { alchemy: { cultivation: 5 }, gather: { insight: 1 } } },
-      { id: 'wander', name: '逍遥', desc: '山海皆道场。游历所得更丰厚，也更懂凡间生计。', start: { spirit: 4, resolve: 6 }, actions: { explore: { stones: 15 }, work: { stones: 15 } } }
+      { id: 'sword', name: '剑修', icon: '剑', desc: '以剑破局。炼体、斗法与江湖行走更得心应手；专修剑意兼顾修为与体魄。', affinityRoots: ['metal', 'wind'], technique: 'sword-intent', start: { physique: 6, reputation: 2 }, actions: { train: { physique: 2 }, explore: { cultivation: 3 } } },
+      { id: 'alchemy', name: '丹修', icon: '丹', desc: '以丹养道。采药、开炉与经营灵材是修行的一部分；双炉合丹能以同样药草炼出两枚聚气丹。', affinityRoots: ['wood', 'fire'], technique: 'dual-pill', start: { insight: 4, stones: 60 }, actions: { alchemy: { cultivation: 5 }, gather: { insight: 1 } } },
+      { id: 'wander', name: '逍遥', icon: '游', desc: '山海皆道场。游历所得更丰厚，也更懂凡间生计；行吟能在修行之余养心赚些盘缠。', affinityRoots: ['water', 'wind'], technique: 'free-roam', start: { spirit: 4, resolve: 6 }, actions: { explore: { stones: 15 }, work: { stones: 15 } } },
+      { id: 'body', name: '体修', icon: '体', desc: '把筋骨炼成自己的法器。体魄成长快，采矿也能练功；淬身耗血较多，需要安排疗养。', affinityRoots: ['earth', 'yang'], technique: 'body-temper', start: { physique: 8, health: 5 }, actions: { train: { physique: 3 }, mine: { cultivation: 4 } } },
+      { id: 'formation', name: '阵修', icon: '阵', desc: '借天地纹理布阵。参悟、锻器更有所得；以一份灵矿推阵，可把阵力封成护身符。', affinityRoots: ['earth', 'water'], technique: 'formation-weave', start: { insight: 6, spirit: 2 }, actions: { comprehend: { cultivation: 4 }, forge: { insight: 2 } } },
+      { id: 'beast', name: '御兽', icon: '兽', desc: '先懂万灵，再谈驾驭。游历能养神，照料灵兽更有效；与万灵共鸣时也能平复心绪。', affinityRoots: ['wood', 'yang'], technique: 'beast-attune', start: { spirit: 6, resolve: 4 }, actions: { explore: { spirit: 2 }, 'beast-care': { spirit: 2, resolve: 2 } } },
+      { id: 'ice', name: '玄冰', icon: '冰', desc: '以寒息定心，以静制动。参悟与凝神更稳；寒潭吐纳增长修为、悟性与心境，但要付出气血。', affinityRoots: ['ice', 'water'], technique: 'frost-breath', start: { insight: 5, resolve: 5 }, actions: { comprehend: { resolve: 2 }, 'spirit-practice': { cultivation: 3 } } },
+      { id: 'thunder', name: '雷修', icon: '雷', desc: '引雷意磨炼经脉。修为进境凌厉，也最考验气血和心境；受伤时必须停下引雷。', affinityRoots: ['thunder', 'metal'], technique: 'thunder-temper', start: { cultivation: 12, physique: 4 }, actions: { train: { cultivation: 4 }, 'spirit-practice': { spirit: 1 } } },
+      { id: 'soul', name: '魂修', icon: '魂', desc: '守住一盏心灯，探索识海深处。神识成长突出；照魂之术消耗心境，不能忘记回到日常休整。', affinityRoots: ['yin', 'ice'], technique: 'soul-lantern', start: { spirit: 8, insight: 2 }, actions: { 'spirit-practice': { spirit: 2 }, comprehend: { resolve: 2 } } },
+      { id: 'yang', name: '纯阳', icon: '阳', desc: '采朝阳养身，借正气固本。炼体时更耐消耗；晨间采气同时恢复气血，却不能代替完整休养。', affinityRoots: ['yang', 'fire'], technique: 'sun-breath', start: { health: 10, physique: 4 }, actions: { train: { health: 3 }, rest: { cultivation: 4 } } }
     ],
     talents: [
       { id: 'early-awakening', name: '早开灵窍', rarity: 'rare', desc: '带着一缕先天灵息入道：初始修为 +30。', start: { cultivation: 30 } },
@@ -85,7 +97,17 @@
       { id: 'sword-study', name: '练习御剑', category: '修行', icon: '剑', desc: '持一柄真正的法剑磨炼剑势。法剑的常驻战力仍会保留。', effects: { physique: 5, spirit: 3, cultivation: 13, health: -5 }, requireItem: 'sword', hint: '需要青锋法剑；法剑不会消耗。' },
       { id: 'escort-work', name: '护送商队', category: '游历', icon: '辙', desc: '沿约定路线押运货车。每完成一次，商队护送进度增加一格。', effects: { stones: 40, reputation: 2, physique: 2, health: -4 }, requireStory: 'escort' },
       { id: 'secret-study', name: '秘境考据', category: '游历', icon: '阵', desc: '逐段校对古阵的缺口。每完成一次，古阵研究进度增加一格。', effects: { insight: 3, cultivation: 13, resolve: -4 }, requireStory: 'secret' },
-      { id: 'beast-care', name: '照料幼兽', category: '生活', icon: '灵', desc: '喂食、换药，等它终于愿意靠近。每完成一次，照料进度增加一格。', effects: { spirit: 3, resolve: 5, health: -2 }, requireStory: 'beast' }
+      { id: 'beast-care', name: '照料幼兽', category: '生活', icon: '灵', desc: '喂食、换药，等它终于愿意靠近。每完成一次，照料进度增加一格。', effects: { spirit: 3, resolve: 5, health: -2 }, requireStory: 'beast' },
+      { id: 'sword-intent', name: '问剑悟意', category: '修行', icon: '剑', desc: '不借法剑的锋利，先磨炼出剑时的心意。兼修筋骨与剑气，需付出少量气血与心境。', effects: { cultivation: 14, physique: 4, spirit: 1, health: -4, resolve: -2 }, requirePath: 'sword', hint: '剑修专属；无需持有法剑。' },
+      { id: 'dual-pill', name: '双炉合丹', category: '修行', icon: '丹', desc: '交替掌控两炉火候，将同一份药性分成两枚聚气丹。丹药收入背囊，需自行决定服用时机。', effects: { cultivation: 6, insight: 2, stones: -45 }, requirePath: 'alchemy', costItems: { herb: 2 }, gainItems: { 'qi-pill': 2 }, hint: '丹修专属；药草 ×2、灵石 45 → 聚气丹 ×2。' },
+      { id: 'free-roam', name: '乘风行吟', category: '修行', icon: '游', desc: '沿山水缓行，以见闻化入吐纳。赚得的盘缠不多，却能在旅途中养神定心。', effects: { cultivation: 10, spirit: 2, resolve: 5, stones: 12, health: -3 }, requirePath: 'wander', hint: '逍遥专属；比专程游历少赚灵石，额外恢复心境。' },
+      { id: 'body-temper', name: '熬骨淬身', category: '修行', icon: '体', desc: '用山石与水压反复磨炼筋骨。体魄增长显著，但气血消耗也大；受伤时不可强练。', effects: { cultivation: 10, physique: 8, health: -12, resolve: -2 }, requirePath: 'body', hint: '体修专属；经脉受伤时不能安排。' },
+      { id: 'formation-weave', name: '推阵结符', category: '修行', icon: '阵', desc: '借一份灵矿推演小阵，将阵眼的灵光封入纸符。所得护身符可留待险地使用。', effects: { cultivation: 8, insight: 3, stones: -30 }, requirePath: 'formation', costItems: { ore: 1 }, gainItems: { ward: 1 }, hint: '阵修专属；灵矿 ×1、灵石 30 → 护身符 ×1。' },
+      { id: 'beast-attune', name: '万灵共鸣', category: '修行', icon: '兽', desc: '在林间静听飞鸟走兽的呼吸，学习以神识回应。尚无灵兽伙伴时，也能从万物中修行。', effects: { cultivation: 10, spirit: 5, resolve: 3, health: -2 }, requirePath: 'beast', hint: '御兽专属；无需先获得灵兽伙伴。' },
+      { id: 'frost-breath', name: '寒潭吐纳', category: '修行', icon: '冰', desc: '以一缕寒息压下杂念，让灵气缓缓凝练。悟性与心境一并成长，寒意却会消磨气血。', effects: { cultivation: 17, insight: 2, resolve: 3, health: -5 }, requirePath: 'ice', hint: '玄冰专属；养心增悟，需要定期温养气血。' },
+      { id: 'thunder-temper', name: '引雷淬脉', category: '修行', icon: '雷', desc: '引入细微雷意锻炼经脉，以更大的消耗换取修为。雷势虽小，也需要完整的身体承受。', effects: { cultivation: 24, physique: 3, spirit: 2, health: -14, resolve: -7 }, requirePath: 'thunder', hint: '雷修专属；高气血、心境消耗，经脉受伤时不能安排。' },
+      { id: 'soul-lantern', name: '照魂守灯', category: '修行', icon: '魂', desc: '点亮识海中的心灯，照见散乱念头。神识增长突出，但长久内观也会疲惫，需要休养心境。', effects: { cultivation: 12, spirit: 7, health: -3, resolve: -7 }, requirePath: 'soul', hint: '魂修专属；神识成长快，心境消耗较高。' },
+      { id: 'sun-breath', name: '朝阳采气', category: '修行', icon: '阳', desc: '在日出时采一缕温和阳气，以修为滋养筋骨。能恢复部分气血，心境仍需靠日常休整。', effects: { cultivation: 14, health: 8, physique: 1, resolve: -5 }, requirePath: 'yang', hint: '纯阳专属；恢复气血，但不解除经脉受伤。' }
     ],
     items: [
       { id: 'manual', name: '小周天注疏', icon: '卷', kind: 'equipment', price: 280, max: 1, desc: '随身研读的修炼手册。每次静室修炼额外修为 +6，购入后长期生效。', actions: { meditate: { cultivation: 6 } } },
@@ -107,14 +129,18 @@
       { id: 'clear-mind', name: '灵台清明', desc: '参悟经典额外悟性 +3；静室修炼额外修为 +4。', duration: 3, actions: { comprehend: { insight: 3 }, meditate: { cultivation: 4 } } }
     ],
     conditions: [
-      { id: 'injured', name: '经脉受伤', desc: '暂时不能山海游历或瀑下炼体。安排归舍休整，或使用续脉膏即可恢复。', blocks: ['explore', 'train'] }
+      { id: 'injured', name: '经脉受伤', desc: '暂时不能山海游历、瀑下炼体、熬骨淬身或引雷淬脉。安排归舍休整，或使用续脉膏即可恢复。', blocks: ['explore', 'train', 'body-temper', 'thunder-temper'] }
     ],
     perks: [
       { id: 'road-guide', name: '商路故交', desc: '商队记住了你的信义。山海游历额外灵石 +20，战力 +6。', actions: { explore: { stones: 20 } }, powerBonus: 6 },
       { id: 'ancient-method', name: '古阵传承', desc: '从残阵中复原一门心法。静室修炼额外修为 +6，破境成功率 +4 个百分点。', actions: { meditate: { cultivation: 6 } }, breakthroughBonus: 0.04 },
       { id: 'beast-companion', name: '灵兽相伴', desc: '一只云纹小兽跟随你走南闯北。战力 +8，山海游历的气血消耗减少 3。', powerBonus: 8, actions: { explore: { health: 3 } } },
       { id: 'village-contact', name: '小镇灯火', desc: '镇上的人把你当作自己人。凡间营生额外灵石 +25、心境 +2。', actions: { work: { stones: 25, resolve: 2 } } },
-      { id: 'library-pass', name: '藏书楼常客', desc: '获得旧藏书楼的长期借阅资格。参悟经典额外悟性 +2。', actions: { comprehend: { insight: 2 } } }
+      { id: 'library-pass', name: '藏书楼常客', desc: '获得旧藏书楼的长期借阅资格。参悟经典额外悟性 +2。', actions: { comprehend: { insight: 2 } } },
+      { id: 'sword-echo', name: '一剑留痕', desc: '记住了前辈落剑的分寸。问剑悟意额外修为 +3，战力 +4。', actions: { 'sword-intent': { cultivation: 3 } }, powerBonus: 4 },
+      { id: 'tempered-sinew', name: '筋骨有节', desc: '学会在发力间隙养护筋骨。瀑下炼体的气血消耗减少 2，熬骨淬身减少 3。', actions: { train: { health: 2 }, 'body-temper': { health: 3 } } },
+      { id: 'beast-accord', name: '林间灵契', desc: '附近鸟兽愿意回应你的灵识。万灵共鸣额外修为 +3，照料幼兽的气血消耗减少 2。', actions: { 'beast-attune': { cultivation: 3 }, 'beast-care': { health: 2 } } },
+      { id: 'soul-anchor', name: '归魂心灯', desc: '你在识海中留下了返回日常的锚点。照魂守灯的心境消耗减少 3，凝神观想额外修为 +2。', actions: { 'soul-lantern': { resolve: 3 }, 'spirit-practice': { cultivation: 2 } } }
     ],
     stories: [
       { id: 'escort', name: '一程风雪', desc: '商队等着你护送两段山路。订金已经收下，尾款要等交付后领取。', actionId: 'escort-work', target: 2, duration: 3, followupEvent: 'escort-finish', rewardDesc: '交付获得灵石 260，并留下长期收获「商路故交」。' },
@@ -122,6 +148,46 @@
       { id: 'beast', name: '山雨里的小兽', desc: '受伤的幼兽住进了你的院子。两次耐心照料之后，再决定它的去处。', actionId: 'beast-care', target: 2, duration: 3, followupEvent: 'beast-finish', rewardDesc: '照料完成后可结为伙伴，获得长期收获「灵兽相伴」。' }
     ],
     events: [
+      { id: 'path-sword-echo', title: '无锋石上的剑痕', icon: '剑', body: '废弃剑坪上，一位老人正用木枝描摹石面的旧痕。他看出你练的是剑，邀你接着前人的笔势补完最后一剑。', requirePath: 'sword', once: true, minYear: 2, weight: 2.2, choices: [
+        { text: '以自身剑意续上石痕', result: '你捡起木枝，慢慢调匀呼吸。', check: { stat: 'physique', difficulty: 35, success: { result: '木枝没有折断，剑势却完整地落在了石上。老人点出发力的关节，这一剑从此留在你心里。', effects: { cultivation: 20, reputation: 3 }, grantPerk: 'sword-echo' }, failure: { result: '剑意在最后一寸散开，反震让手臂隐隐发痛。老人收起木枝，提醒你先练稳自己的节奏。', effects: { health: -6, insight: 2 } } } },
+        { text: '先看老人把整套剑势演完', result: '你记下起剑与收剑的分寸，知道还有哪些基本功需要慢慢磨。', effects: { insight: 2 } }
+      ] },
+      { id: 'path-alchemy-furnace', title: '旧炉里的双生丹纹', icon: '丹', body: '修炉匠从废炉内壁刮出一张丹纹拓片，上面记着双炉分火的次序。他愿意借一口旧炉，与你合炼一枚明心破境丹。', requirePath: 'alchemy', once: true, minYear: 2, weight: 2.2, choices: [
+        { text: '出两份药草与 60 灵石，共同开炉', result: '两股丹火在炉心相会，明心丹顺利成形。你收好丹瓶，也亲手摸清了分火时机。', costItems: { herb: 2 }, effects: { stones: -60, insight: 4 }, gainItems: { 'breakthrough-pill': 1 } },
+        { text: '帮他清理旧炉，抄下火候笔记', result: '修炉匠没有藏私，把火候次序完整讲了一遍。暂时没有材料，也不妨碍你学懂道理。', effects: { insight: 2, spirit: 1 } }
+      ] },
+      { id: 'path-wander-road', title: '一条被雨冲断的路', icon: '游', body: '行吟到小镇时，你发现商队与村民都堵在塌方处。你熟悉附近水势，能为他们寻一条便道，只是要出些钱租来船和绳索。', requirePath: 'wander', once: true, minYear: 2, weight: 2.2, choices: [
+        { text: '出 90 灵石开通便道', result: '船穿过浅湾，绳桥重新连起两岸。镇民邀请你以后路过时来喝碗热汤，这里从此有了一处落脚地。', effects: { stones: -90, reputation: 5 }, grantPerk: 'village-contact' },
+        { text: '把沿途见过的地形画给村民', result: '你画下河湾和高地的位置。等物资备齐，他们就能照图开路。', effects: { spirit: 2, reputation: 1 } }
+      ] },
+      { id: 'path-body-stone', title: '磨坊里的炼体老人', icon: '体', body: '山村磨坊的老人不用牛马，自己推着石磨。听说你也修炼筋骨，他请你试着分清蛮力与巧劲。', requirePath: 'body', once: true, minYear: 2, weight: 2.2, choices: [
+        { text: '接过磨杆，以全身劲力推动', result: '你稳住脚跟，让力量从地面一路传到双臂。', check: { stat: 'physique', difficulty: 40, success: { result: '石磨转过一整圈，呼吸仍然平稳。老人教你在发力之间养住筋骨，今后淬身不必总靠硬撑。', effects: { physique: 3, cultivation: 15 }, grantPerk: 'tempered-sinew' }, failure: { result: '你一时急于发力，反而扯伤经脉。老人扶你坐下，嘱咐养好伤势再来练基本功。', effects: { health: -12 }, addCondition: 'injured' } } },
+        { text: '先跟着老人学站桩与换气', result: '石磨没动，但你的呼吸与脚步比来时更稳了。', effects: { physique: 2, resolve: 2 } }
+      ] },
+      { id: 'path-formation-library', title: '藏书楼外的断阵', icon: '阵', body: '旧藏书楼的护书阵缺了两个阵眼，雨气正渗入卷宗。守楼人认出你是阵修，请你用灵矿补好阵脚，之后可长期来借书。', requirePath: 'formation', once: true, minYear: 2, weight: 2.2, choices: [
+        { text: '用两份灵矿补好护书阵', result: '水汽被稳稳挡在窗外。守楼人递来借书木牌，留出一张靠窗的桌子供你推演阵图。', costItems: { ore: 2 }, effects: { insight: 3 }, grantPerk: 'library-pass' },
+        { text: '先把受潮卷宗搬到高处', result: '你帮忙护住了最旧的一批书，也看清了断阵为何会漏水。', effects: { insight: 2 } }
+      ] },
+      { id: 'path-beast-spring', title: '春林里的求助声', icon: '兽', body: '你在鸟鸣里听见急促的求助。几只幼鸟误食了苦藤，成鸟守在树梢，等着一个能理解它们的人。', requirePath: 'beast', once: true, minYear: 2, weight: 2.2, choices: [
+        { text: '取两份药草，为幼鸟调养', result: '幼鸟渐渐恢复精神，整片林子的鸣声也柔和起来。鸟兽记住了这道善意的神识，往后愿意回应你的共鸣。', costItems: { herb: 2 }, effects: { spirit: 3, resolve: 4 }, grantPerk: 'beast-accord' },
+        { text: '引成鸟去找山下的兽医', result: '你沿路留下温和的灵识，直到兽医带着药箱赶来。', effects: { spirit: 2, reputation: 1 } }
+      ] },
+      { id: 'path-ice-plum', title: '寒潭上最后一枝梅', icon: '冰', body: '山中寒潮将梅枝冻在潭面，枝下却藏着一处温泉灵眼。若能读懂冰与水转换的脉络，也许能不伤树根地取出其中灵药。', requirePath: 'ice', once: true, minYear: 2, weight: 2.2, choices: [
+        { text: '顺着冰纹引开寒息', result: '你把吐纳的节奏放得比水滴还慢。', check: { stat: 'insight', difficulty: 40, success: { result: '冰纹依次散开，梅根安然无恙。泉眼旁留着前人封存的一枚明心丹，还有两包可温养心神的灵茶。', gainItems: { 'breakthrough-pill': 1, 'mountain-tea': 2 }, effects: { cultivation: 15 } }, failure: { result: '寒息比预计更深，你及时收手，仍被冻得气血迟滞。', effects: { health: -8, insight: 2 } } } },
+        { text: '沿潭观察，记下冰纹的走向', result: '你没有扰动梅根，却把寒息流转的次序记在了心里。', effects: { insight: 2, resolve: 2 } }
+      ] },
+      { id: 'path-thunder-pillar', title: '山顶引雷柱', icon: '雷', body: '一根残旧铜柱仍在替山下村落分散雷电。守柱人见你修雷法，邀你借一次雷意修补柱纹，但提醒你量力而行。', requirePath: 'thunder', once: true, minYear: 2, weight: 2.2, choices: [
+        { text: '以自身雷意接续柱纹', result: '你先找好退路，才将灵力送向铜柱。', check: { stat: 'power', difficulty: 42, success: { result: '雷光顺着新纹路泄入地下。守柱人送来两张护身符，提醒你驾驭雷霆也要记得保护自己。', effects: { cultivation: 30, reputation: 4 }, gainItems: { ward: 2 } }, failure: { result: '一缕雷意逆冲经脉，你立刻切断联系。铜柱还在，伤势却需要先养好。', effects: { health: -14, resolve: -4 }, addCondition: 'injured' } } },
+        { text: '帮忙清理接地沟，观察雷纹', result: '排雷的沟渠疏通了。即使没有引雷，你也看懂了一部分雷意的去向。', effects: { spirit: 2, reputation: 1 } }
+      ] },
+      { id: 'path-soul-lantern', title: '夜渡的纸灯', icon: '魂', body: '江边的旧渡口每到夜晚就有纸灯自明。残留的思念没有恶意，只是在等待一条回到安宁的路。你熟悉识海，也许能帮它们找到归处。', requirePath: 'soul', once: true, minYear: 2, weight: 2.2, choices: [
+        { text: '以心灯照见思念的来处', result: '你先记住身边的江声，再让神识靠近纸灯。', check: { stat: 'spirit', difficulty: 40, success: { result: '灯光一盏盏熄灭，渡口恢复宁静。你也学会在深处内观时，为自己留下返回日常的心灯。', effects: { spirit: 3, resolve: 5 }, grantPerk: 'soul-anchor' }, failure: { result: '太多记忆同时涌来。你循着江声收回神识，决定今夜先好好休息。', effects: { resolve: -10, insight: 2 } } } },
+        { text: '坐在岸边，为往事留一夜安静', result: '你没有强求答案，只看着灯光随水波摇晃。', effects: { resolve: 4 } }
+      ] },
+      { id: 'path-yang-clinic', title: '药房的第一缕晨光', icon: '阳', body: '阴雨连绵，山镇药房的草药迟迟晾不干。你的纯阳灵息可以温和驱散湿寒，药师愿意拿药材与你合作制一份续脉膏。', requirePath: 'yang', once: true, minYear: 2, weight: 2.2, choices: [
+        { text: '花 40 灵石补齐辅料，温养药炉', result: '晨光般的灵息慢慢融入药炉，病人们也能用上新药。药师把两份续脉膏装好送给你。', effects: { stones: -40, health: 10, reputation: 3 }, gainItems: { 'healing-salve': 2 } },
+        { text: '替药房晒干草药，再一起吃顿早饭', result: '草药重新有了清香。一碗热粥下肚，你觉得温养身体也可以从这样的小事开始。', effects: { health: 5, resolve: 3 } }
+      ] },
       { id: 'escort-invite', title: '雪线上的商队', icon: '辙', body: '掌柜把一袋订金推到你面前：今年北山封雪，商队缺一个能走完两段险路的护送人。接下后，需要在期限内安排两次「护送商队」。', minYear: 2, maxRealm: 3, once: true, weight: 3, choices: [
         { text: '接下护送，收取订金', result: '你在名册上留下名字。两段山路已经记进日程，掌柜等着在终点与你结清。', effects: { stones: 80 }, startStory: 'escort' },
         { text: '这几年另有安排', result: '你给商队指了附近镖局的位置，双方互道平安。' }

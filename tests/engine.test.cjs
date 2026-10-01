@@ -27,6 +27,14 @@ const startStory = (s, def) => {
   E.choose(s, invite.choices.findIndex(choice => choice.startStory === def.id));
   return byId(D.events, def.followupEvent);
 };
+const forPath = (path, root = path.affinityRoots[0], overrides = {}) => Object.assign(E.create({ name: '百道试修', root, path: path.id, talents: [], seed: 123 }), overrides);
+const prepareTechnique = (s, action) => {
+  s.realm = Math.max(s.realm, action.requireRealm || 0); s.breakthroughs = s.realm; s.stones = 10000; s.contribution = 100; s.health = 100; s.resolve = 60;
+  if (action.requireSect) s.sect = D.sects[0].id;
+  if (action.requireItem) s.inventory[action.requireItem] = 1;
+  for (const [id, count] of Object.entries(action.costItems || {})) s.inventory[id] = count * 2;
+  return s;
+};
 
 test('the starting character and talent draw are deterministic and independent', () => {
   const a = fresh(123), b = fresh(123);
@@ -329,6 +337,8 @@ test('every encounter has a safe usable choice in its valid context', () => {
   for (const event of D.events) {
     const s = fresh(4, { year: Math.max(1, event.minYear || 1), realm: event.minRealm || 0, health: 1, resolve: 1, stones: 0 }); s.age = 15 + s.year;
     if (event.requireSect) s.sect = D.sects[0].id;
+    if (event.requirePath) s.path = event.requirePath;
+    if (event.requireRoot) s.root = event.requireRoot;
     if (event.storyOnly) { const story = byId(D.stories, event.storyId); s.stories[story.id] = { status: 'active', progress: 0, startedYear: 1, dueYear: 1 + story.duration, resolvedYear: null, ending: '' }; }
     setPending(s, event); const safe = event.choices.find(choice => !choice.check && !choice.startStory && !E.choiceError(s, choice));
     assert.ok(safe, `${event.id}: no usable guaranteed choice at zero stones`);
@@ -492,4 +502,140 @@ test('ascension is achievable through ordinary play without edited stats or unli
     assert.equal(s.ending.id, 'ascended'); completedYears.push(s.year);
   }
   assert.ok(Math.max(...completedYears) < D.realms[0].lifespan - 15, `ascension years: ${completedYears.join(', ')}`);
+});
+
+test('all one hundred root and path combinations remain valid choices and preserve their identity on reload', () => {
+  assert.equal(D.roots.length, 10); assert.equal(D.paths.length, 10);
+  assert.equal(new Set(D.roots.map(root => root.id)).size, 10); assert.equal(new Set(D.paths.map(path => path.id)).size, 10);
+  let matches = 0;
+  for (const root of D.roots) for (const path of D.paths) {
+    const s = forPath(path, root.id), status = E.pathStatus(s); const matched = path.affinityRoots.includes(root.id);
+    assert.equal(status.rootId, root.id); assert.equal(status.pathId, path.id); assert.equal(status.rootName, root.name); assert.equal(status.pathName, path.name);
+    assert.equal(status.matched, matched); assert.equal(status.techniqueId, path.technique); assert.ok(status.summary);
+    assert.deepEqual(status.affinityRoots, path.affinityRoots);
+    assert.deepEqual([...status.recommendedPaths].sort(), D.paths.filter(candidate => candidate.affinityRoots.includes(root.id)).map(candidate => candidate.id).sort());
+    if (matched) matches++; else assert.deepEqual(status.bonuses, {});
+    plan(s, ['meditate', 'comprehend', 'rest']); assert.deepEqual(E.validate(JSON.parse(JSON.stringify(s))), s);
+  }
+  assert.equal(matches, 20);
+});
+
+test('the ten paths have the intended two root affinities and unique exclusive techniques', () => {
+  const affinities = { sword: ['metal', 'wind'], alchemy: ['wood', 'fire'], wander: ['water', 'wind'], body: ['earth', 'yang'], formation: ['earth', 'water'], beast: ['wood', 'yang'], ice: ['ice', 'water'], thunder: ['thunder', 'metal'], soul: ['yin', 'ice'], yang: ['yang', 'fire'] };
+  assert.equal(new Set(D.paths.map(path => path.technique)).size, 10);
+  for (const path of D.paths) {
+    assert.deepEqual([...path.affinityRoots].sort(), [...affinities[path.id]].sort());
+    const technique = byId(D.actions, path.technique); assert.equal(technique.requirePath, path.id);
+    assert.deepEqual(E.pathStatus({ root: path.affinityRoots[0], path: path.id }).bonuses, { actions: { meditate: { cultivation: 4 }, [path.technique]: { cultivation: 6 } }, breakthroughBonus: .04 });
+  }
+});
+
+test('affinity grants its advertised growth and probability bonuses in addition to the root’s existing benefits', () => {
+  for (const path of D.paths) {
+    const matchedRoot = byId(D.roots, path.affinityRoots[0]), otherRoot = D.roots.find(root => !path.affinityRoots.includes(root.id));
+    const technique = byId(D.actions, path.technique), matching = prepareTechnique(forPath(path, matchedRoot.id), technique), unrelated = prepareTechnique(forPath(path, otherRoot.id), technique);
+    for (const s of [matching, unrelated]) Object.assign(s, { cultivation: 0, insight: 10, physique: 20, spirit: 20, health: 100, resolve: 50 });
+    for (const [id, bonus] of [['meditate', 4], [technique.id, 6]]) {
+      const first = (E.actionPreview(matching, id).cultivation || 0) - (matchedRoot.actions?.[id]?.cultivation || 0);
+      const second = (E.actionPreview(unrelated, id).cultivation || 0) - (otherRoot.actions?.[id]?.cultivation || 0);
+      assert.equal(first - second, bonus, `${path.id}/${id}`);
+    }
+    const probability = E.breakthroughStatus(matching).chance - E.breakthroughStatus(unrelated).chance - (matchedRoot.breakthroughBonus || 0) + (otherRoot.breakthroughBonus || 0);
+    assert.ok(Math.abs(probability - .04) < 1e-10, path.id);
+    const ids = ['meditate', technique.id, 'rest'];
+    for (const s of [matching, unrelated]) { plan(s, ids); E.advance(s); }
+    const rootGrowth = root => ids.reduce((sum, id) => sum + (root.actions?.[id]?.cultivation || 0), 0);
+    assert.equal(matching.cultivation - rootGrowth(matchedRoot) - unrelated.cultivation + rootGrowth(otherRoot), 10, path.id);
+  }
+});
+
+test('exclusive techniques execute for their own path and reject other paths even after importing a save', () => {
+  for (const path of D.paths) {
+    const technique = byId(D.actions, path.technique), s = prepareTechnique(forPath(path), technique);
+    assert.equal(E.actionError(s, technique.id), ''); const before = E.clone(s), expected = E.actionPreview(s, technique.id);
+    plan(s, [technique.id, 'rest', 'rest']); E.advance(s);
+    assert.equal(s.cultivation - before.cultivation, (expected.cultivation || 0) + 2 * (E.actionPreview(before, 'rest').cultivation || 0), path.id);
+    for (const id of new Set([...Object.keys(technique.costItems || {}), ...Object.keys(technique.gainItems || {})])) {
+      assert.equal(s.inventory[id] || 0, (before.inventory[id] || 0) - (technique.costItems?.[id] || 0) + (technique.gainItems?.[id] || 0), `${path.id}/${id}`);
+    }
+    assert.deepEqual(E.validate(JSON.parse(JSON.stringify(s))), s);
+    const foreign = E.clone(before); foreign.path = D.paths.find(candidate => candidate.id !== path.id).id;
+    assert.ok(E.actionError(foreign, technique.id)); unchangedOnError(foreign, () => E.addPlan(foreign, technique.id));
+    foreign.plan = [technique.id, 'rest', 'rest']; assert.throws(() => E.validate(foreign));
+    if (byId(D.conditions, 'injured').blocks.includes(technique.id)) {
+      const injured = E.clone(before); injured.conditions.push('injured'); assert.match(E.actionError(injured, technique.id), /经脉受伤/);
+      unchangedOnError(injured, () => E.addPlan(injured, technique.id));
+    }
+  }
+});
+
+test('exclusive techniques reserve their material and spirit-stone costs in action order', () => {
+  const materialPaths = D.paths.filter(path => Object.keys(byId(D.actions, path.technique).costItems || {}).length); assert.ok(materialPaths.length);
+  for (const path of materialPaths) {
+    const technique = byId(D.actions, path.technique), s = prepareTechnique(forPath(path), technique);
+    for (const id of Object.keys(technique.costItems)) delete s.inventory[id]; unchangedOnError(s, () => E.addPlan(s, technique.id));
+    for (const [id, count] of Object.entries(technique.costItems)) s.inventory[id] = count;
+    unchangedOnError(s, () => plan(s, [technique.id, technique.id, 'rest'])); plan(s, [technique.id, 'rest', 'rest']); E.advance(s);
+    for (const id of Object.keys(technique.costItems)) assert.equal(s.inventory[id] || 0, technique.gainItems?.[id] || 0);
+  }
+  const path = D.paths.find(candidate => (byId(D.actions, candidate.technique).effects.stones || 0) < 0); assert.ok(path);
+  const technique = byId(D.actions, path.technique), s = prepareTechnique(forPath(path), technique); s.stones = 0;
+  unchangedOnError(s, () => plan(s, [technique.id, 'work', 'rest'])); plan(s, ['work', technique.id, 'rest']);
+  const expected = E.actionPreview(s, 'work').stones + E.actionPreview(s, technique.id).stones; E.advance(s); assert.equal(s.stones, expected);
+});
+
+test('all ten path encounters are isolated, offer safe choices and preserve their material consequences', () => {
+  const events = D.events.filter(event => event.requirePath); assert.equal(events.length, 10); assert.ok(D.events.length >= 50);
+  for (const event of events) {
+    assert.equal(event.once, true); assert.equal(event.minYear, 2);
+    const path = byId(D.paths, event.requirePath), owner = forPath(path, path.affinityRoots[0], { year: 3, age: 18, stones: 10000, insight: 50, spirit: 50, health: 100 });
+    assert.ok(E.eventWeight(owner, event) > 0); assert.ok(E.eventPool(owner).some(candidate => candidate.id === event.id));
+    const foreign = E.clone(owner); foreign.path = D.paths.find(candidate => candidate.id !== path.id).id;
+    assert.equal(E.eventWeight(foreign, event), 0); assert.ok(!E.eventPool(foreign).some(candidate => candidate.id === event.id));
+    setPending(foreign, event); assert.throws(() => E.validate(foreign)); unchangedOnError(foreign, () => E.choose(foreign, 0));
+    setPending(owner, event); assert.deepEqual(E.validate(JSON.parse(JSON.stringify(owner))), owner);
+    const poor = E.clone(owner); poor.stones = 0; poor.contribution = 0;
+    assert.ok(event.choices.some(choice => !choice.check && !E.choiceError(poor, choice)), event.id);
+    let materialChoiceTested = false;
+    for (const [index, choice] of event.choices.entries()) {
+      if (choice.check) continue;
+      const participant = E.clone(owner);
+      for (const [id, count] of Object.entries(choice.costItems || {})) participant.inventory[id] = count;
+      if (E.choiceError(participant, choice)) continue;
+      const before = E.clone(participant); E.choose(participant, index);
+      for (const id of new Set([...Object.keys(choice.costItems || {}), ...Object.keys(choice.gainItems || {})])) {
+        materialChoiceTested = true; assert.equal(participant.inventory[id] || 0, (before.inventory[id] || 0) - (choice.costItems?.[id] || 0) + (choice.gainItems?.[id] || 0));
+      }
+      if (choice.grantPerk) { materialChoiceTested = true; assert.ok(participant.perks.includes(choice.grantPerk)); }
+      if (choice.addCondition) { materialChoiceTested = true; assert.ok(participant.conditions.includes(choice.addCondition)); }
+      if (choice.buff) { materialChoiceTested = true; assert.equal(participant.buffs[choice.buff] || 0, byId(D.buffs, choice.buff).duration - 1); }
+      participant.seen.push(event.id); assert.equal(E.eventWeight(participant, event), 0); assert.deepEqual(E.validate(JSON.parse(JSON.stringify(participant))), participant);
+    }
+    assert.ok(materialChoiceTested || event.choices.some(choice => choice.check?.success?.gainItems || choice.check?.success?.grantPerk || choice.check?.success?.buff || choice.check?.failure?.addCondition || choice.check?.failure?.buff), `${event.id} must offer more than plain stat changes`);
+  }
+});
+
+test('root restrictions protect annual plans and pending encounters as well as event selection', () => {
+  const action = { id: 'test-root-technique', name: '引冰入脉', category: '修行', effects: { cultivation: 5 }, requireRoot: 'ice' };
+  const event = { id: 'test-root-encounter', title: '冰魄共鸣', requireRoot: 'ice', choices: [{ text: '静心感应', result: '冰魄化入灵息。', effects: { cultivation: 5 } }] };
+  D.actions.push(action); D.events.push(event);
+  try {
+    const rightful = forPath(byId(D.paths, 'ice'), 'ice'), foreign = forPath(byId(D.paths, 'sword'), 'metal');
+    assert.equal(E.actionError(rightful, action.id), ''); assert.ok(E.actionError(foreign, action.id)); unchangedOnError(foreign, () => E.addPlan(foreign, action.id));
+    const invalidPlan = E.clone(foreign); invalidPlan.plan = [action.id]; assert.throws(() => E.validate(invalidPlan));
+    assert.ok(E.eventWeight(rightful, event) > 0); assert.equal(E.eventWeight(foreign, event), 0);
+    setPending(foreign, event); assert.throws(() => E.validate(foreign)); unchangedOnError(foreign, () => E.choose(foreign, 0));
+    setPending(rightful, event); assert.equal(E.choiceError(rightful, event.choices[0]), ''); E.choose(rightful, 0); assert.ok(rightful.cultivation >= 5);
+  } finally { D.actions.pop(); D.events.pop(); }
+});
+
+test('older roots and paths reload without applying starting gifts again or invalidating generic sword practice', () => {
+  for (const root of ['metal', 'wood', 'water', 'fire', 'earth']) for (const path of ['sword', 'alchemy', 'wander']) {
+    const s = E.create({ name: '旧卷修士', root, path, talents: ['early-awakening', 'old-inheritance'], seed: 77 });
+    Object.assign(s, { year: 5, age: 20, cultivation: 17, stones: 41, health: 63, insight: 29, spirit: 21, physique: 32, reputation: 11, resolve: 72 });
+    s.inventory.sword = 1; plan(s, ['sword-study', 'rest', 'rest']);
+    assert.deepEqual(E.validate(JSON.parse(JSON.stringify(s))), s);
+    const legacy = E.clone(s); legacy.version = 1; const loaded = E.validate(legacy);
+    assert.deepEqual(loaded, { ...legacy, version: 2 }); assert.deepEqual(E.validate(loaded), loaded);
+  }
 });
